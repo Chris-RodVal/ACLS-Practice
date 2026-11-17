@@ -130,8 +130,9 @@ export default function MonitorCanvas({
       drawGridSlot(ctx, s.sweepX, eraseWidth, height);
 
       // Heart rate timing
-      // For AESP (Actividad Eléctrica Sin Pulso), the patient has NO mechanical pulse,
-      // but DOES have organized electrical depolarization complexes at an idioventricular rate (~48 lpm)!
+      // For AESP: uses its OWN independent timing via performance.now() inside getECGValue/getECGV5Value
+      // so the waveform ALWAYS shows organized complexes regardless of hr state.
+      // The beat interval here is only used for QRS beep triggering and other rhythms.
       let currentHr = p.isPacingActive ? p.pacerRate : p.hr;
       const isAesp = p.rhythm === 'AESP' || (typeof p.rhythm === 'string' && p.rhythm.includes('AESP'));
       if (isAesp && (!currentHr || currentHr <= 0)) {
@@ -140,10 +141,19 @@ export default function MonitorCanvas({
       const beatInterval = currentHr > 0 ? 60 / currentHr : 9999;
       const timeSinceLastBeat = (now - s.lastBeatTime) / 1000;
 
-      if (currentHr > 0 && timeSinceLastBeat >= beatInterval) {
+      // For AESP: also trigger QRS beep using independent timing
+      if (isAesp) {
+        const aespBeatPeriod = 60.0 / 48; // 1.25 seconds
+        const aespPhaseNow = ((now * 0.001) % aespBeatPeriod) / aespBeatPeriod;
+        const aespPhasePrev = (((now - 16.666) * 0.001) % aespBeatPeriod) / aespBeatPeriod;
+        // Detect QRS onset crossing (p ≈ 0.20 is the R wave peak zone)
+        if (aespPhaseNow >= 0.20 && aespPhasePrev < 0.20) {
+          if (p.onQRSBeat) p.onQRSBeat(p.spo2);
+        }
+      } else if (currentHr > 0 && timeSinceLastBeat >= beatInterval) {
         s.lastBeatTime = now;
         s.beatPhase = 0;
-        if (p.pulsePresent || ['TV_MONOMORFA', 'TSVP', 'FA_RVR', 'FLUTTER', 'SINUSAL', 'SINUSAL_BRADI', 'BRADICARDIA_SINUSAL', 'BAV_3', 'BAV_2_MOBITZ_2', 'AESP'].includes(p.rhythm) || isAesp) {
+        if (p.pulsePresent || ['TV_MONOMORFA', 'TSVP', 'FA_RVR', 'FLUTTER', 'SINUSAL', 'SINUSAL_BRADI', 'BRADICARDIA_SINUSAL', 'BAV_3', 'BAV_2_MOBITZ_2'].includes(p.rhythm)) {
           if (p.onQRSBeat) p.onQRSBeat(p.spo2);
         }
       }
@@ -465,18 +475,28 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
       val = getPacedComplex(p);
       break;
 
-    case 'AESP':
+    case 'AESP': {
       // Actividad Eléctrica Sin Pulso (AESP):
       // ¡CLAVE ACLS! Hay actividad eléctrica ORGANIZADA en el monitor pero SIN pulso palpable.
-      // Morfología: QRS ancho (> 0.12s), bajo voltaje, con ondas P visibles o no, ST aplanado.
-      // Frecuencia lenta-moderada (20-60 lpm) según el caso.
-      // Es COMPLETAMENTE DISTINTA de la asistolia (hay complejos) y de la FV (es organizada).
-      val = getAespComplex(p);
+      // IMPORTANTE: Usa timing INDEPENDIENTE de hr/beatInterval basado en performance.now()
+      // para garantizar que los complejos SIEMPRE se dibujen, incluso si hr=0 en el state.
+      // Frecuencia eléctrica intrínseca: ~48 lpm (escape idioventricular)
+      const aespRateLpm = 48;
+      const aespPeriodSec = 60.0 / aespRateLpm; // 1.25 seconds per cycle
+      const aespTimeSec = performance.now() * 0.001;
+      const aespCycleProgress = (aespTimeSec % aespPeriodSec) / aespPeriodSec;
+      val = getAespComplex(aespCycleProgress);
       break;
+    }
 
     default: // 'SINUSAL', 'BRADICARDIA_SINUSAL', etc.
       if (typeof rhythm === 'string' && rhythm.includes('AESP')) {
-        val = getAespComplex(p);
+        // Same independent timing for any AESP variant name
+        const aespRateDef = 48;
+        const aespPeriodDef = 60.0 / aespRateDef;
+        const aespTimeDef = performance.now() * 0.001;
+        const aespCycleDef = (aespTimeDef % aespPeriodDef) / aespPeriodDef;
+        val = getAespComplex(aespCycleDef);
       } else {
         val = getStandardPQRST(p, true, true, false, 0.0);
       }
@@ -523,8 +543,11 @@ function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0) {
     const slowDrift = Math.sin(nowSec * 0.4 + 0.8) * 0.015;
     val = slowDrift + (Math.random() - 0.5) * 0.012;
   } else if (isAesp) {
-    // AESP en V5: morfología concordante con BCRI / idioventricular amplio
-    val = -getAespComplex(p) * 0.85 + (p >= 0.44 && p <= 0.72 ? 0.30 * Math.sin(((p - 0.44) / 0.28) * Math.PI) : 0);
+    // AESP en V5: timing independiente (igual que D2) para garantizar complejos visibles
+    const aespPeriodV5 = 60.0 / 48;
+    const aespTimeV5 = performance.now() * 0.001;
+    const aespCycleV5 = (aespTimeV5 % aespPeriodV5) / aespPeriodV5;
+    val = -getAespComplex(aespCycleV5) * 0.85 + (aespCycleV5 >= 0.44 && aespCycleV5 <= 0.72 ? 0.30 * Math.sin(((aespCycleV5 - 0.44) / 0.28) * Math.PI) : 0);
   } else if (['TV_MONOMORFA', 'TVSP'].includes(rhythm)) {
     val = -Math.sin(p * Math.PI * 2) * 0.8 + (Math.random() - 0.5) * 0.03;
   } else {
