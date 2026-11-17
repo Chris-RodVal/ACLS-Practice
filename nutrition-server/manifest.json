@@ -1,0 +1,22 @@
+{
+  "manifestVersion": 1,
+  "id": "nutricion_diaria",
+  "name": "Nutrición Diaria",
+  "author": "Antigravity",
+  "repoUrl": "https://github.com/remnoteio/remnote-plugin-template-react",
+  "version": {
+    "major": 0,
+    "minor": 0,
+    "patch": 2
+  },
+  "theme": [],
+  "enableOnMobile": true,
+  "description": "Widget de registro nutricional diario simple para Daily Documents.",
+  "requestNative": false,
+  "requiredScopes": [
+    {
+      "type": "All",
+      "level": "ReadCreateModifyDelete"
+    }
+  ]
+}

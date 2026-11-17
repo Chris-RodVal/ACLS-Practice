@@ -1,43 +1,60 @@
 import { declareIndexPlugin, type ReactRNPlugin, WidgetLocation } from '@remnote/plugin-sdk';
 import '../style.css';
-import '../index.css'; // import <widget-name>.css
+import '../index.css';
 
 async function onActivate(plugin: ReactRNPlugin) {
-  // Register settings
-  await plugin.settings.registerStringSetting({
-    id: 'name',
-    title: 'What is your Name?',
-    defaultValue: 'Bob',
-  });
+  // 1. Registrar el Powerup que identificará al bloque de Nutrición Diaria
+  await plugin.app.registerPowerup(
+    'Nutrición Diaria',
+    'nutrition-powerup',
+    'Añade un diario de registro nutricional a este bloque.',
+    {
+      slots: [
+        { code: 'data', name: 'Datos' }
+      ]
+    }
+  );
 
-  await plugin.settings.registerBooleanSetting({
-    id: 'pizza',
-    title: 'Do you like pizza?',
-    defaultValue: true,
-  });
+  // 2. Registrar el widget para que aparezca debajo del Rem que tenga el Powerup
+  await plugin.app.registerWidget(
+    'nutrition_widget',
+    WidgetLocation.UnderRemEditor,
+    {
+      dimensions: { height: 'auto', width: '100%' },
+      powerupFilter: 'nutrition-powerup'
+    }
+  );
 
-  await plugin.settings.registerNumberSetting({
-    id: 'favorite-number',
-    title: 'What is your favorite number?',
-    defaultValue: 42,
-  });
-
-  // A command that inserts text into the editor if focused.
+  // 3. Registrar el comando de barra oblicua (slash command) "/nutricion"
   await plugin.app.registerCommand({
-    id: 'editor-command',
-    name: 'Editor Command',
+    id: 'insert-nutrition-widget',
+    name: 'Nutrición Diaria',
+    description: 'Inserta el widget de registro nutricional diario',
+    quickCode: 'nutricion',
     action: async () => {
-      plugin.editor.insertPlainText('Hello World!');
-    },
+      const selection = await plugin.editor.getSelection();
+      let remId: string | undefined = undefined;
+      if (selection) {
+        if (selection.type === 'Text') {
+          remId = selection.remId;
+        } else if (selection.type === 'Rem') {
+          remId = selection.remIds[0];
+        }
+      }
+
+      if (remId) {
+        const rem = await plugin.rem.findOne(remId);
+        if (rem) {
+          await rem.addPowerup('nutrition-powerup');
+          return;
+        }
+      }
+      await plugin.app.toast('Por favor, haz clic en un bloque de texto antes de insertar el widget.');
+    }
   });
 
-  // Show a toast notification to the user.
-  await plugin.app.toast("I'm a toast!");
-
-  // Register a sidebar widget.
-  await plugin.app.registerWidget('sample_widget', WidgetLocation.RightSidebar, {
-    dimensions: { height: 'auto', width: '100%' },
-  });
+  // Mostrar mensaje de activación discreto
+  await plugin.app.toast('Plugin de Nutrición Diaria activado con éxito. Escribe /nutricion para usarlo.');
 }
 
 async function onDeactivate(_: ReactRNPlugin) {}

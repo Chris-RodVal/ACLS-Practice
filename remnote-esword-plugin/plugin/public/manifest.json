@@ -1,0 +1,21 @@
+{
+  "manifestVersion": 1,
+  "id": "esword-bible-integration",
+  "name": "E-Sword Bible Integration",
+  "description": "Integración con E-Sword para estudio bíblico: versiones comparativas, comentarios y diccionarios multiléxicos directamente en RemNote.",
+  "author": "Christopher Rodriguez",
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "requestNative": false,
+  "requiredScopes": [
+    {
+      "type": "All",
+      "level": "ReadCreateModifyDelete"
+    }
+  ],
+  "enableOnMobile": false,
+  "repoUrl": "https://github.com/christopherrodriguez/remnote-esword-plugin"
+}

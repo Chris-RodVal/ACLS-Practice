@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>E-Sword RemNote Plugin</title>
+  <link rel="stylesheet" href="/assets/styles-Bf-8b7KT.css">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+    const params = new URLSearchParams(window.location.search);
+    const widget = params.get('widgetName');
+    if (widget === 'bible_popup') {
+      import('/bible_popup.js');
+    } else if (widget === 'esword_sidebar' || widget === 'sidebar') {
+      import('/sidebar.js');
+    } else {
+      import('/index.js');
+    }
+  </script>
+</body>
+</html>
