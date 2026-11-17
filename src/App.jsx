@@ -294,14 +294,18 @@ export default function App() {
     soundEngine.speak(`Atención. El paciente pierde la consciencia y no respira. Ritmo de paro: ${currentCase.arrestVitals.rhythmName}. Inicien RCP.`, 'system');
     setPhase('arrest');
     setPulsePresent(false);
-    setHr(0);
+    const isAesp = currentCase.arrestVitals.rhythm === 'AESP' || 
+                   (typeof currentCase.arrestVitals.rhythm === 'string' && currentCase.arrestVitals.rhythm.includes('AESP')) ||
+                   currentCase.arrestType === 'AESP';
+    const arrestHr = isAesp ? (currentCase.arrestVitals.hr || 48) : 0;
+    setHr(arrestHr);
     setSpo2(0);
     setBp('0/0');
     setEtco2(currentCase.arrestVitals.etco2);
     setRr(0);
     setRhythm(currentCase.arrestVitals.rhythm);
     setRhythmName(currentCase.arrestVitals.rhythmName);
-    setConsciousness('Inconsciente, sin respuesta a estímulos');
+    setConsciousness('Inconsciente, sin respuesta a estímulos (SIN PULSO)');
     setPatientDialogue('');
     setAnnouncement(currentCase.degenerationMessage);
     setCprCycleSeconds(0);

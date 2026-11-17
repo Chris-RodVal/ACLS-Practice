@@ -130,14 +130,20 @@ export default function MonitorCanvas({
       drawGridSlot(ctx, s.sweepX, eraseWidth, height);
 
       // Heart rate timing
-      const currentHr = p.isPacingActive ? p.pacerRate : p.hr;
+      // For AESP (Actividad Eléctrica Sin Pulso), the patient has NO mechanical pulse,
+      // but DOES have organized electrical depolarization complexes at an idioventricular rate (~48 lpm)!
+      let currentHr = p.isPacingActive ? p.pacerRate : p.hr;
+      const isAesp = p.rhythm === 'AESP' || (typeof p.rhythm === 'string' && p.rhythm.includes('AESP'));
+      if (isAesp && (!currentHr || currentHr <= 0)) {
+        currentHr = 48; // Standard intrinsic electrical rate in AESP
+      }
       const beatInterval = currentHr > 0 ? 60 / currentHr : 9999;
       const timeSinceLastBeat = (now - s.lastBeatTime) / 1000;
 
       if (currentHr > 0 && timeSinceLastBeat >= beatInterval) {
         s.lastBeatTime = now;
         s.beatPhase = 0;
-        if (p.pulsePresent || ['TV_MONOMORFA', 'TSVP', 'FA_RVR', 'FLUTTER', 'SINUSAL', 'SINUSAL_BRADI', 'BRADICARDIA_SINUSAL', 'BAV_3', 'BAV_2_MOBITZ_2'].includes(p.rhythm)) {
+        if (p.pulsePresent || ['TV_MONOMORFA', 'TSVP', 'FA_RVR', 'FLUTTER', 'SINUSAL', 'SINUSAL_BRADI', 'BRADICARDIA_SINUSAL', 'BAV_3', 'BAV_2_MOBITZ_2', 'AESP'].includes(p.rhythm) || isAesp) {
           if (p.onQRSBeat) p.onQRSBeat(p.spo2);
         }
       }
@@ -469,7 +475,11 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
       break;
 
     default: // 'SINUSAL', 'BRADICARDIA_SINUSAL', etc.
-      val = getStandardPQRST(p, true, true, false, 0.0);
+      if (typeof rhythm === 'string' && rhythm.includes('AESP')) {
+        val = getAespComplex(p);
+      } else {
+        val = getStandardPQRST(p, true, true, false, 0.0);
+      }
       break;
   }
 
@@ -477,10 +487,10 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
   val = val * ecgGain;
 
   // Superimpose CPR compressions artifact if CPR is actively happening
+  // Preserves 75% of the underlying cardiac rhythm so QRS complexes peek through compressions!
   if (isCprActive) {
-    const cprHz = 110 / 60; // ~110 compressions per minute
-    const cprWave = Math.sin(performance.now() * 0.001 * cprHz * Math.PI * 2) * 0.55;
-    val = val * 0.5 + cprWave + (Math.random() - 0.5) * 0.08;
+    const cprArt = getCprArtifact(performance.now() * 0.001);
+    val = val * 0.75 + cprArt * 0.65;
   }
 
   // Transcutaneous pacing spike injection
@@ -494,6 +504,8 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
 // ECG Lead V5 (D5) vector
 function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0) {
   let val = 0;
+  const isAesp = rhythm === 'AESP' || (typeof rhythm === 'string' && rhythm.includes('AESP'));
+
   if (rhythm === 'FV' || rhythm === 'FV_GRUESA') {
     // V5 vector: precordial anterolateral derivación con ángulo vectorial desfasado
     val = (Math.cos(p * 22 + Math.cos(p * 36)) * 0.65 +
@@ -510,10 +522,9 @@ function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0) {
     const nowSec = performance.now() * 0.001;
     const slowDrift = Math.sin(nowSec * 0.4 + 0.8) * 0.015;
     val = slowDrift + (Math.random() - 0.5) * 0.012;
-  } else if (rhythm === 'AESP') {
-    // AESP en V5: QRS ancho con morfología de bloqueo de rama izquierda (BCRI)
-    // R empastada monofásica amplia, ST/T discordante
-    val = getAespComplex(p) * 0.85;
+  } else if (isAesp) {
+    // AESP en V5: morfología concordante con BCRI / idioventricular amplio
+    val = -getAespComplex(p) * 0.85 + (p >= 0.44 && p <= 0.72 ? 0.30 * Math.sin(((p - 0.44) / 0.28) * Math.PI) : 0);
   } else if (['TV_MONOMORFA', 'TVSP'].includes(rhythm)) {
     val = -Math.sin(p * Math.PI * 2) * 0.8 + (Math.random() - 0.5) * 0.03;
   } else {
@@ -525,55 +536,66 @@ function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0) {
   val = val * ecgGain;
 
   if (isCprActive) {
-    val += Math.sin(performance.now() * 0.001 * (110 / 60) * Math.PI * 2) * 0.45;
+    val = val * 0.75 - getCprArtifact(performance.now() * 0.001 + 0.05) * 0.55;
   }
   return val;
 }
 
+// Realistic Chest Compression Artifact (110 cpm)
+function getCprArtifact(timeSec) {
+  const cprRateHz = 110 / 60; // ~110 compressions per minute
+  const phase = (timeSec * cprRateHz) % 1.0;
+  let w = 0;
+  // Sternal compression downward thrust and rapid recoil
+  if (phase < 0.35) {
+    w = -Math.sin((phase / 0.35) * Math.PI) * 0.52;
+  } else if (phase < 0.70) {
+    w = Math.sin(((phase - 0.35) / 0.35) * Math.PI) * 0.32;
+  }
+  const jitter = (Math.random() - 0.5) * 0.05 + Math.sin(timeSec * 50) * 0.03;
+  return w + jitter;
+}
+
 // AESP Complex — Actividad Eléctrica Sin Pulso
-// QRS ORGANIZADO pero ANCHO (> 0.12s) con BAJO VOLTAJE
-// Se distingue clínicamente de FV (es organizado) y de Asistolia (hay complejos definidos)
-// Morfología: onda P pequeña visible, QRS ensanchado con melladuras (empastamiento),
-// ST aplanado/descendido, T invertida — clásico de disociación electromecánica grave.
+// QRS ORGANIZADO ANCHO (> 0.14s) con MORFOLOGÍA IDIOVENTRICULAR / BCRI
+// Se distingue CLÍNICAMENTE de FV (es organizado) y de Asistolia (hay complejos periódicos a 48 lpm).
+// Morfología: Onda P visible o no, QRS ancho con empastamiento y muesca apexiana,
+// ST descendido y onda T discordante invertida, con línea isoeléctrica nítida entre latidos.
 function getAespComplex(p) {
   let y = 0;
 
-  // Onda P pequeña y aplanada (reducida por hipoxia/acidosis miocárdica)
+  // Onda P pequeña o disociada (hipoxia miocárdica en paro)
   if (p >= 0.04 && p <= 0.12) {
-    y += Math.sin(((p - 0.04) / 0.08) * Math.PI) * 0.10;
+    y += Math.sin(((p - 0.04) / 0.08) * Math.PI) * 0.14;
   }
 
-  // Segmento PR ligeramente prolongado (hipocalcemia/acidosis)
-  // QRS ANCHO: inicio lento, dos "corcovos" (empastamiento de rama), duración 0.14-0.18s
-  if (p >= 0.18 && p < 0.21) {
-    // Inicio lento (no espicular)
-    y += ((p - 0.18) / 0.03) * 0.28;
+  // Segmento PR isoeléctrico
+  // QRS ANCHO ORGANIZADO (escape idioventricular / BCRI: > 140 ms)
+  // 1. Rama ascendente empastada (delta-like)
+  if (p >= 0.18 && p < 0.24) {
+    y += ((p - 0.18) / 0.06) * 0.45;
   }
-  if (p >= 0.21 && p < 0.26) {
-    // Pico R empastado (con muesca característica de BCRI)
-    const rPhase = (p - 0.21) / 0.05;
-    y += 0.28 + Math.sin(rPhase * Math.PI) * 0.55;
+  // 2. Cúspide ancha con melladura M clásica de bloqueo de rama
+  if (p >= 0.24 && p < 0.35) {
+    const rPhase = (p - 0.24) / 0.11;
+    y += 0.45 + Math.sin(rPhase * Math.PI) * 0.85;
     // Muesca de empastamiento
-    if (p >= 0.23 && p < 0.235) y -= 0.08;
+    if (p >= 0.28 && p < 0.305) y -= 0.15;
   }
-  if (p >= 0.26 && p < 0.32) {
-    // Descenso lento post-R (QRS ancho sin S nítida)
-    y += 0.55 * (1.0 - ((p - 0.26) / 0.06)) * 0.5;
-  }
-
-  // ST deprimido horizontal (isquemia subendocárdica difusa en AESP)
-  if (p >= 0.32 && p < 0.46) {
-    y -= 0.12;
+  // 3. Rama descendente lenta post-R
+  if (p >= 0.35 && p < 0.44) {
+    const sPhase = (p - 0.35) / 0.09;
+    y += 0.45 * (1.0 - sPhase) - Math.sin(sPhase * Math.PI) * 0.25;
   }
 
-  // Onda T invertida y asimétrica
-  if (p >= 0.46 && p <= 0.65) {
-    const tPhase = (p - 0.46) / 0.19;
-    y -= Math.sin(tPhase * Math.PI) * 0.22;
+  // 4. Segmento ST deprimido y onda T asimétrica discordante invertida
+  if (p >= 0.44 && p <= 0.72) {
+    const tPhase = (p - 0.44) / 0.28;
+    y -= Math.sin(tPhase * Math.PI) * 0.38 + (1.0 - tPhase) * 0.14;
   }
 
-  // Mínimo ruido de baseline
-  y += (Math.random() - 0.5) * 0.018;
+  // 5. Línea de base isoeléctrica entre latidos con micro-ruido biológico
+  y += (Math.random() - 0.5) * 0.015;
   return y;
 }
 
@@ -742,11 +764,17 @@ function getPlethValue(pulsePresent, p, spo2, isCprActive = false) {
   // Caso A: Paro cardíaco / Sin pulso arterial espontáneo
   if (!pulsePresent) {
     if (isCprActive) {
-      // Masaje cardíaco en curso: artefacto por compresión torácica externa
-      // Onda sinusoidal rítmica a ~110 cpm, amplitud moderada-baja, SIN morfología arterial ni muesca dícrota
+      // Masaje cardíaco en curso: compresión externa genera ondas de perfusión pasiva amortiguadas
       const nowSec = performance.now() * 0.001;
       const cprRateHz = 110 / 60;
-      return Math.sin(nowSec * cprRateHz * Math.PI * 2) * 0.22 + (Math.random() - 0.5) * 0.015;
+      const phase = (nowSec * cprRateHz) % 1.0;
+      let y = 0;
+      if (phase < 0.38) {
+        y = Math.sin((phase / 0.38) * Math.PI) * 0.22;
+      } else {
+        y = 0.22 * Math.exp(-((phase - 0.38) / 0.35) * 3);
+      }
+      return y + (Math.random() - 0.5) * 0.012;
     }
     // Paro cardiorrespiratorio sin compresiones: sensor óptico inactivo (línea plana con mínimo ruido térmico)
     return (Math.random() - 0.5) * 0.008;

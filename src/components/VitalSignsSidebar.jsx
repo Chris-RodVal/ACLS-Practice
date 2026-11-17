@@ -61,10 +61,32 @@ export default function VitalSignsSidebar({
           </div>
           <div className="flex items-baseline justify-between mt-1">
             <span className="text-3xl font-black font-mono tracking-tight text-emerald-400">
-              {isCprActive ? 'RCP' : hr > 0 ? hr : '0'}
+              {isCprActive ? 'RCP' : (hr > 0 ? hr : (rhythmName && rhythmName.includes('AESP') ? 48 : '0'))}
             </span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-800 text-emerald-400">
-              {isCprActive ? 'COMPRESIÓN' : hr > 100 ? 'TAQUI' : hr < 50 && hr > 0 ? 'BRADI' : hr === 0 ? 'ASISTOLIA' : 'NORMAL'}
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+              !pulsePresent && (hr > 0 || (rhythmName && rhythmName.includes('AESP')))
+                ? 'bg-purple-950/90 border-purple-600 text-purple-300 font-bold animate-pulse shadow-sm shadow-purple-900/50'
+                : isCprActive
+                ? 'bg-emerald-950/80 border-emerald-800 text-emerald-400'
+                : hr > 100
+                ? 'bg-amber-950/80 border-amber-800 text-amber-300'
+                : hr < 50 && hr > 0
+                ? 'bg-sky-950/80 border-sky-800 text-sky-300'
+                : hr === 0
+                ? 'bg-rose-950/80 border-rose-800 text-rose-300'
+                : 'bg-emerald-950/80 border-emerald-800 text-emerald-400'
+            }`}>
+              {!pulsePresent && (hr > 0 || (rhythmName && rhythmName.includes('AESP')))
+                ? 'AESP (SIN PULSO)'
+                : isCprActive
+                ? 'COMPRESIÓN'
+                : hr > 100
+                ? 'TAQUI'
+                : hr < 50 && hr > 0
+                ? 'BRADI'
+                : hr === 0
+                ? 'ASISTOLIA'
+                : 'NORMAL'}
             </span>
           </div>
           <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5">
