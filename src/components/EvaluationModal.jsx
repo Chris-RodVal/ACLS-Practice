@@ -186,8 +186,8 @@ export default function EvaluationModal({
                         </td>
                         <td className="py-2.5 px-4 text-center">
                           {item.isNotApplicable ? (
-                            <span className="inline-flex items-center gap-1 text-slate-300 font-bold bg-slate-800/90 border border-slate-600 px-2 py-0.5 rounded text-[10px]">
-                              NO EVALUABLE (Presencial)
+                            <span className="inline-flex items-center gap-1 text-amber-300 font-bold bg-amber-950/80 border border-amber-600/70 px-2 py-0.5 rounded text-[10px] tracking-wider uppercase">
+                              NO APLICABLE
                             </span>
                           ) : item.done ? (
                             <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 rounded text-[11px]">
@@ -200,7 +200,9 @@ export default function EvaluationModal({
                           )}
                         </td>
                         <td className="py-2.5 px-4 text-[11px] text-slate-400">
-                          {item.note || (item.done ? 'Cumplido oportunamente' : 'Omitido o incorrecto')}
+                          {item.isNotApplicable 
+                            ? (item.note || 'No aplicable a la simulación virtual — Evaluado en box presencial por el docente')
+                            : (item.note || (item.done ? 'Cumplido oportunamente' : 'Omitido o incorrecto'))}
                         </td>
                       </>
                     )}

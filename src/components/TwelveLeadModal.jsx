@@ -65,6 +65,15 @@ const REAL_ECG_MAP = {
     { src: './ecg/BAV2 Mobitz II.png', label: 'Bloqueo AV 2° Mobitz II (Típico)' },
     { src: './ecg/BAV2 Mobitz II 3 es a 1.png', label: 'Bloqueo AV 2° Mobitz II (Conducción 3:1)' }
   ],
+  STEMI_INFERIOR: [
+    { src: './ecg/STEMI inferior 1.png', label: 'STEMI Inferior (DII, DIII, aVF con espejo en DI, aVL) 1' },
+    { src: './ecg/STEMI inferior 2.png', label: 'STEMI Inferior (DII, DIII, aVF) 2' },
+    { src: './ecg/STEMI inferior 3.png', label: 'STEMI Inferior (DII, DIII, aVF) 3' }
+  ],
+  STEMI_ANTEROLATERAL: [
+    { src: './ecg/STEMI anterolateral 1.png', label: 'STEMI Anterolateral Extenso (V1-V6, DI, aVL) 1' },
+    { src: './ecg/STEMI anterolateral 2.png', label: 'STEMI Anterolateral Extenso 2' }
+  ],
   SINUSAL_ST_ELEVATION: [
     { src: './ecg/STEMI inferior 1.png', label: 'STEMI Inferior (DII, DIII, aVF) 1' },
     { src: './ecg/STEMI inferior 2.png', label: 'STEMI Inferior 2' },
@@ -81,6 +90,30 @@ const REAL_ECG_MAP = {
   ]
 };
 
+// Helper to accurately classify STEMI territory from case data and rhythm
+export function detectStemiType(currentCase, rhythm, phase) {
+  const text = [
+    currentCase?.title || '',
+    currentCase?.hytCategory || '',
+    currentCase?.reversibleCause || '',
+    currentCase?.rceVitals?.rhythmName || '',
+    currentCase?.rceVitals?.rhythm || '',
+    currentCase?.initialVitals?.rhythmName || '',
+    currentCase?.initialVitals?.rhythm || '',
+    rhythm || '',
+    currentCase?.patient?.presentation || '',
+    currentCase?.physicalExam?.cardiac || '',
+    currentCase?.physicalExam?.others || ''
+  ].join(' ').toLowerCase();
+
+  const isInferior = text.includes('inferior') || text.includes('dii, diii') || text.includes('d2, d3') || text.includes('diafragm');
+  const isAnterolateral = text.includes('anterolateral') || text.includes('anterior') || text.includes('v1-v6') || text.includes('v2-v4');
+
+  if (isInferior) return 'INFERIOR';
+  if (isAnterolateral) return 'ANTEROLATERAL';
+  return 'INFERIOR'; // Default fallback
+}
+
 export default function TwelveLeadModal({ isOpen, onClose, currentCase, phase, rhythm }) {
   const canvasRef = useRef(null);
   const [activeTab, setActiveTab] = useState('real'); // 'real' | 'canvas'
@@ -93,7 +126,10 @@ export default function TwelveLeadModal({ isOpen, onClose, currentCase, phase, r
       return currentCase?.arrestVitals?.rhythmName || 'Paro Cardiorrespiratorio';
     }
     if (phase === 'post_rce') {
-      return currentCase?.rceVitals?.rhythmName || 'Ritmo Posparo (RCE) — Descarte de STEMI';
+      const stemiType = detectStemiType(currentCase, rhythm, phase);
+      return stemiType === 'INFERIOR'
+        ? 'RCE Posparo: STEMI Inferior (Supradesnivel DII, DIII, aVF) ➔ Hemodinamia'
+        : 'RCE Posparo: STEMI Anterolateral (Supradesnivel V1-V6, DI, aVL) ➔ Hemodinamia';
     }
     return currentCase?.initialVitals?.rhythmName || rhythm || 'Arritmia Inicial';
   };
@@ -103,9 +139,15 @@ export default function TwelveLeadModal({ isOpen, onClose, currentCase, phase, r
       return currentCase?.arrestType || (currentCase?.isShockable ? 'FV' : 'AESP');
     }
     if (phase === 'post_rce') {
-      return currentCase?.rceVitals?.rhythm || rhythm || 'SINUSAL_ST_ELEVATION';
+      const stemiType = detectStemiType(currentCase, rhythm, phase);
+      return stemiType === 'INFERIOR' ? 'STEMI_INFERIOR' : 'STEMI_ANTEROLATERAL';
     }
-    return rhythm || currentCase?.initialVitals?.rhythm || 'TV_MONOMORFA';
+    const baseRhythm = rhythm || currentCase?.initialVitals?.rhythm || 'TV_MONOMORFA';
+    if (baseRhythm === 'SINUSAL_ST_ELEVATION' || baseRhythm.includes('STEMI')) {
+      const stemiType = detectStemiType(currentCase, rhythm, phase);
+      return stemiType === 'INFERIOR' ? 'STEMI_INFERIOR' : 'STEMI_ANTEROLATERAL';
+    }
+    return baseRhythm;
   };
 
   const currentKey = getActiveKey();
@@ -424,31 +466,60 @@ function drawTwelveLeads(ctx, width, height, currentCase, rhythm, phase) {
 
 function calculateLeadSample(leadName, p, rhythm, phase, currentCase) {
   const activeRhythm = phase === 'arrest'
-    ? (currentCase?.arrestType || 'FV')
+    ? (currentCase?.arrestType || (currentCase?.isShockable ? 'FV' : 'AESP'))
     : phase === 'post_rce'
     ? (currentCase?.rceVitals?.rhythm || 'SINUSAL_ST_ELEVATION')
     : (rhythm || currentCase?.initialVitals?.rhythm || 'TV_MONOMORFA');
 
-  if (phase === 'arrest' || ['FV', 'FV_GRUESA', 'FV_FINA', 'ASISTOLIA', 'TVSP'].includes(activeRhythm)) {
-    if (activeRhythm === 'FV' || activeRhythm === 'FV_GRUESA') {
-      return (Math.sin(p * 26) + Math.cos(p * 39)) * 0.75;
-    }
-    if (activeRhythm === 'FV_FINA') {
-      return (Math.sin(p * 36) + Math.cos(p * 55)) * 0.12;
-    }
-    if (activeRhythm === 'ASISTOLIA') {
-      return (Math.random() - 0.5) * 0.02;
-    }
-    if (activeRhythm === 'TVSP') {
-      return Math.sin(p * Math.PI * 2) * 1.1;
-    }
+  // ASISTOLIA: Línea plana rigurosa en las 12 derivaciones
+  if (activeRhythm === 'ASISTOLIA') {
+    return (Math.random() - 0.5) * 0.02;
   }
 
-  // TV Monomorfa: complejos QRS anchos (>0.12s), regulares, monofásicos y rápidos
+  // AESP: Actividad eléctrica organizada de escape idioventricular ancho (QRS > 0.14s) a ~48 lpm
+  if (activeRhythm === 'AESP' || (typeof activeRhythm === 'string' && activeRhythm.includes('AESP'))) {
+    let y = 0;
+    // Onda P disociada/hipóxica pequeña
+    if (p >= 0.04 && p <= 0.12) {
+      y += Math.sin(((p - 0.04) / 0.08) * Math.PI) * (leadName === 'aVR' ? -0.1 : 0.12);
+    }
+    // Complejo QRS ancho y empastado (> 140 ms)
+    if (p >= 0.18 && p < 0.24) {
+      y += ((p - 0.18) / 0.06) * 0.45;
+    }
+    if (p >= 0.24 && p < 0.35) {
+      const rPhase = (p - 0.24) / 0.11;
+      y += 0.45 + Math.sin(rPhase * Math.PI) * 0.85;
+      if (p >= 0.28 && p < 0.305) y -= 0.15; // Muesca apexiana
+    }
+    if (p >= 0.35 && p < 0.44) {
+      const sPhase = (p - 0.35) / 0.09;
+      y += 0.45 * (1.0 - sPhase) - Math.sin(sPhase * Math.PI) * 0.25;
+    }
+    // Onda T discordante invertida
+    if (p >= 0.44 && p <= 0.72) {
+      const tPhase = (p - 0.44) / 0.28;
+      y -= Math.sin(tPhase * Math.PI) * 0.35;
+    }
+    const isNegativeVector = ['aVR', 'V1', 'V2'].includes(leadName);
+    return (isNegativeVector ? -y * 0.85 : y) + (Math.random() - 0.5) * 0.02;
+  }
+
+  // Fibrilación Ventricular
+  if (activeRhythm === 'FV' || activeRhythm === 'FV_GRUESA') {
+    return (Math.sin(p * 26) + Math.cos(p * 39)) * 0.75 + (Math.random() - 0.5) * 0.08;
+  }
+  if (activeRhythm === 'FV_FINA') {
+    return (Math.sin(p * 36) + Math.cos(p * 55)) * 0.12 + (Math.random() - 0.5) * 0.03;
+  }
+  if (activeRhythm === 'TVSP') {
+    return Math.sin(p * Math.PI * 2) * 1.1;
+  }
+
+  // TV Monomorfa: complejos QRS anchos (>0.12s), regulares y rápidos
   if (activeRhythm === 'TV_MONOMORFA') {
     const isNegativeLead = ['aVR', 'V1'].includes(leadName);
     const wave = Math.sin(p * Math.PI * 2);
-    // Asymmetric wide ventricular shape
     const shape = wave > 0 ? Math.pow(wave, 0.8) * 1.3 : -Math.pow(Math.abs(wave), 1.2) * 1.1;
     return (isNegativeLead ? -shape : shape) + (Math.random() - 0.5) * 0.03;
   }
@@ -465,12 +536,12 @@ function calculateLeadSample(leadName, p, rhythm, phase, currentCase) {
     const sawTooth = ((p * 4) % 1) - 0.5;
     let y = isInferior ? -sawTooth * 0.4 : sawTooth * 0.2;
     if (p >= 0.22 && p < 0.28) {
-      y += 1.2; // QRS angosto intercalado
+      y += 1.2;
     }
     return y;
   }
 
-  // TSVP: QRS angosto a alta frecuencia (sin onda P visible previa)
+  // TSVP: QRS angosto a alta frecuencia
   if (activeRhythm === 'TSVP') {
     let y = 0;
     if (p >= 0.16 && p < 0.22) {
@@ -478,47 +549,125 @@ function calculateLeadSample(leadName, p, rhythm, phase, currentCase) {
     } else if (p >= 0.22 && p < 0.26) {
       y -= 0.3;
     } else if (p >= 0.32 && p < 0.44) {
-      y += 0.25; // T wave
+      y += 0.25;
     }
     return y;
   }
 
   // STEMI (Infarto con supradesnivel del ST)
-  const isStemiInferior = currentCase?.hytCategory?.toLowerCase().includes('inferior');
-  const isStemiAnterolateral = !isStemiInferior; // Default STEMI
-  const hasElevationInLead = (activeRhythm === 'SINUSAL_ST_ELEVATION' || phase === 'post_rce') && (
-    (isStemiAnterolateral && ['V2', 'V3', 'V4', 'V5', 'I', 'aVL'].includes(leadName)) ||
-    (isStemiInferior && ['II', 'III', 'aVF'].includes(leadName))
-  );
+  const isStemi = activeRhythm === 'SINUSAL_ST_ELEVATION' || activeRhythm.includes('STEMI') || phase === 'post_rce';
+  if (isStemi) {
+    const stemiType = detectStemiType(currentCase, rhythm, phase);
+    let y = 0;
 
+    // Onda P normal
+    if (p >= 0.08 && p <= 0.16) {
+      y += Math.sin(((p - 0.08) / 0.08) * Math.PI) * (leadName === 'aVR' ? -0.15 : 0.2);
+    }
+
+    if (stemiType === 'INFERIOR') {
+      // ========================================================
+      // STEMI DE CARA INFERIOR (Oclusión de Coronaria Derecha / CD o CX):
+      // - DII, DIII, aVF: Supradesnivel marcado del ST (+4 a +5 mm) y T hiperaguda
+      // - DI, aVL: Infradesnivel especular/recíproco (-2 a -3 mm) y T negativa
+      // - V1-V6: ESTRICTAMENTE ISOELÉCTRICO (¡SIN elevación del ST!)
+      // ========================================================
+      if (['II', 'III', 'aVF'].includes(leadName)) {
+        if (p >= 0.18 && p < 0.20) y -= 0.25; // Onda Q patológica en cara inferior
+        if (p >= 0.20 && p < 0.24) y += 1.1;  // Onda R
+        // J-point y ST supradesnivel masivo
+        if (p >= 0.24 && p < 0.42) {
+          const stPhase = (p - 0.24) / 0.18;
+          y += 0.75 + Math.sin(stPhase * Math.PI) * 0.25;
+        }
+        // Onda T monofásica fusionada con ST
+        if (p >= 0.42 && p <= 0.58) {
+          y += Math.sin(((p - 0.42) / 0.16) * Math.PI) * 0.85;
+        }
+        return y;
+      }
+
+      if (['I', 'aVL'].includes(leadName)) {
+        // Espejo recíproco en cara lateral alta
+        if (p >= 0.20 && p < 0.24) y += 1.0;
+        if (p >= 0.24 && p < 0.28) y -= 0.35;
+        // Infradesnivel ST
+        if (p >= 0.28 && p < 0.42) y -= 0.35;
+        // Onda T invertida
+        if (p >= 0.42 && p <= 0.58) {
+          y -= Math.sin(((p - 0.42) / 0.16) * Math.PI) * 0.35;
+        }
+        return y;
+      }
+
+      if (leadName === 'aVR') {
+        if (p >= 0.20 && p < 0.24) y -= 1.1;
+        if (p >= 0.42 && p <= 0.58) y -= Math.sin(((p - 0.42) / 0.16) * Math.PI) * 0.25;
+        return y;
+      }
+
+      // Precordiales V1 a V6: ISOELÉCTRICAS (Sin elevación anterior)
+      if (leadName.startsWith('V')) {
+        const leadNum = parseInt(leadName.slice(1), 10) || 1;
+        const rHeight = 0.3 + (leadNum * 0.22);
+        const sDepth = 1.4 - (leadNum * 0.20);
+        if (p >= 0.20 && p < 0.23) y += rHeight;
+        if (p >= 0.23 && p < 0.27) y -= sDepth;
+        // ST isoeléctrico (0.0)
+        if (p >= 0.42 && p <= 0.58) {
+          y += Math.sin(((p - 0.42) / 0.16) * Math.PI) * 0.35;
+        }
+        return y;
+      }
+    } else {
+      // ========================================================
+      // STEMI ANTEROLATERAL EXTENSO (Oclusión de Arteria Descendente Anterior / DA):
+      // - V1 a V6, DI, aVL: Supradesnivel masivo en lápida de tumba (+4 a +6 mm)
+      // - DII, DIII, aVF: Infradesnivel especular/recíproco (-2 a -3 mm)
+      // ========================================================
+      if (['V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'I', 'aVL'].includes(leadName)) {
+        if (p >= 0.18 && p < 0.20) y -= 0.2;
+        if (p >= 0.20 && p < 0.24) y += leadName.startsWith('V') ? 1.5 : 1.1;
+        // Supradesnivel tombstone masivo
+        if (p >= 0.24 && p < 0.42) {
+          const stPhase = (p - 0.24) / 0.18;
+          y += 0.80 + Math.sin(stPhase * Math.PI) * 0.25;
+        }
+        if (p >= 0.42 && p <= 0.58) {
+          y += Math.sin(((p - 0.42) / 0.16) * Math.PI) * 0.85;
+        }
+        return y;
+      }
+
+      if (['II', 'III', 'aVF'].includes(leadName)) {
+        // Espejo recíproco inferior
+        if (p >= 0.20 && p < 0.24) y += 0.9;
+        if (p >= 0.24 && p < 0.28) y -= 0.35;
+        if (p >= 0.28 && p < 0.42) y -= 0.35;
+        if (p >= 0.42 && p <= 0.58) {
+          y -= Math.sin(((p - 0.42) / 0.16) * Math.PI) * 0.35;
+        }
+        return y;
+      }
+
+      if (leadName === 'aVR') {
+        if (p >= 0.20 && p < 0.24) y -= 1.0;
+        if (p >= 0.28 && p < 0.42) y += 0.25;
+        return y;
+      }
+    }
+  }
+
+  // Ritmo Sinusal / Bradicardia Sinusal estándar
   let y = 0;
-  // P wave
   if (p >= 0.08 && p <= 0.16) {
     y += Math.sin(((p - 0.08) / 0.08) * Math.PI) * (leadName === 'aVR' ? -0.15 : 0.2);
   }
-  // Q
-  if (p >= 0.18 && p < 0.20) {
-    y -= (hasElevationInLead ? 0.25 : 0.1);
-  }
-  // R
-  if (p >= 0.20 && p < 0.24) {
-    y += leadName === 'aVR' ? -1.0 : (leadName.startsWith('V') ? 1.5 : 1.1);
-  }
-  // S
-  if (p >= 0.24 && p < 0.28) {
-    y -= leadName === 'aVR' ? -0.2 : 0.4;
-  }
-  // ST
-  if (p >= 0.28 && p < 0.42) {
-    if (hasElevationInLead) {
-      y += 0.65; // notable elevación del ST (criterio diagnóstico STEMI)
-    }
-  }
-  // T wave
+  if (p >= 0.18 && p < 0.20) y -= 0.1;
+  if (p >= 0.20 && p < 0.24) y += leadName === 'aVR' ? -1.0 : (leadName.startsWith('V') ? 1.4 : 1.1);
+  if (p >= 0.24 && p < 0.28) y -= leadName === 'aVR' ? -0.2 : 0.4;
   if (p >= 0.42 && p <= 0.58) {
-    const tVal = Math.sin(((p - 0.42) / 0.16) * Math.PI);
-    y += leadName === 'aVR' ? -tVal * 0.25 : tVal * (hasElevationInLead ? 0.7 : 0.35);
+    y += Math.sin(((p - 0.42) / 0.16) * Math.PI) * (leadName === 'aVR' ? -0.25 : 0.35);
   }
-
   return y;
 }

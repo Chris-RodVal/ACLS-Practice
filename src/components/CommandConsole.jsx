@@ -23,6 +23,9 @@ export default function CommandConsole({
   intubationTimer = 0,
   onAdministerFluids = () => {},
   infusedVolumeMl = 0,
+  onAdministerAdrenaline = () => {},
+  onAdministerAtropine = () => {},
+  onAdministerAmiodarone = () => {},
   onOpenAiEvaluation = () => {},
   aiScorePreview = null,
   hasTtm = false,
@@ -38,9 +41,14 @@ export default function CommandConsole({
 }) {
   const [inputVal, setInputVal] = useState('');
   const [showFluidPicker, setShowFluidPicker] = useState(false);
+  const [selectedFluidType, setSelectedFluidType] = useState('ringer'); // 'ringer' | 'saline'
   const [showO2Picker, setShowO2Picker] = useState(false);
   const [showReferMenu, setShowReferMenu] = useState(false);
   const [showTtmMenu, setShowTtmMenu] = useState(false);
+  const [showAdrenalineMenu, setShowAdrenalineMenu] = useState(false);
+  const [showAtropineMenu, setShowAtropineMenu] = useState(false);
+  const [showAmiodaroneMenu, setShowAmiodaroneMenu] = useState(false);
+  const [showOtherDrugsMenu, setShowOtherDrugsMenu] = useState(false);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -72,7 +80,11 @@ export default function CommandConsole({
           <div className="flex items-center gap-2">
             <Stethoscope className="w-4 h-4 text-amber-400" />
             <span className="font-bold">
-              🩺 INTUBACIÓN OROTRAQUEAL EN PROCESO (Pausa de compresiones: {intubationTimer}s restantes)
+              🩺 INTUBACIÓN OROTRAQUEAL EN PROCESO (
+              {(isCprActive || phase === 'arrest')
+                ? `Pausa de compresiones: ${intubationTimer}s restantes`
+                : `Secuencia rápida: ${intubationTimer}s restantes`}
+              )
             </span>
           </div>
           <span className="text-[11px] text-amber-200 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-600/40">
@@ -349,16 +361,18 @@ export default function CommandConsole({
             <span className="text-[9px] text-blue-300/90 font-mono">Avanzar Ciclo RCP</span>
           </button>
 
-          {/* 5. Intubación Endotraqueal (TET) - 30s de pausa realista */}
+          {/* 5. Intubación Endotraqueal (TET) - 30s de pausa realista solo en paro */}
           <button
             onClick={onStartIntubation}
             disabled={isIntubating}
             className="p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 disabled:opacity-50 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Intubación endotraqueal: pausa de compresiones de 30 segundos requerida según pauta"
+            title={(isCprActive || phase === 'arrest') ? "Intubación orotraqueal: pausa de compresiones de 30 segundos" : "Intubación orotraqueal en secuencia rápida (paciente con pulso, sin pausa de compresiones)"}
           >
             <Stethoscope className="w-4 h-4 text-teal-400" />
             <span className="text-xs font-bold font-mono">Intubar TET</span>
-            <span className="text-[9px] text-teal-300/90 font-mono">Pausa 30s Real</span>
+            <span className="text-[9px] text-teal-300/90 font-mono">
+              {(isCprActive || phase === 'arrest') ? 'Pausa 30s RCP' : 'Secuencia Rápida'}
+            </span>
           </button>
 
           {/* 6. Declarar Ritmo */}
@@ -374,37 +388,83 @@ export default function CommandConsole({
 
         </div>
 
-        {/* Fila 2: Terapéutica (Suero Salino, Oxígeno, Fármacos, Desfibrilador, Causas H y T, IA Evaluadora) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1.5 pt-1">
+        {/* Fila 2: Terapéutica (Fluidos ATLS, Oxígeno, Fármacos con dosis ACLS, Desfibrilador, POCUS, Causas 5H/5T, IA Evaluadora) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-10 gap-1.5 pt-1">
           
-          {/* Suero Salino con selector de ml */}
+          {/* 1. Fluidos IV ATLS con selector de tipo (Ringer Lactato vs SF) y volumen */}
           <div className="relative">
             <button
-              onClick={() => setShowFluidPicker(!showFluidPicker)}
+              onClick={() => {
+                setShowFluidPicker(!showFluidPicker);
+                setShowO2Picker(false);
+                setShowAdrenalineMenu(false);
+                setShowAtropineMenu(false);
+                setShowAmiodaroneMenu(false);
+                setShowOtherDrugsMenu(false);
+              }}
               className="w-full p-2 rounded-lg bg-sky-950/70 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-              title="Administrar bolo de Suero Fisiológico 0.9% para expansión de volumen"
+              title="Administrar cristaloides IV: Selección entre Ringer Lactato (ATLS) y Suero Fisiológico 0.9%"
             >
               <Droplets className="w-4 h-4 text-sky-400" />
-              <span className="text-xs font-bold font-mono">Suero Salino</span>
-              <span className="text-[9px] text-sky-300/80 font-mono">Bolo ml ▼</span>
+              <span className="text-xs font-bold font-mono">Fluidos IV</span>
+              <span className="text-[9px] text-sky-300/80 font-mono">
+                {selectedFluidType === 'ringer' ? 'Ringer (ATLS)' : 'SF 0.9%'} ▼
+              </span>
             </button>
 
-            {/* Menú desplegable de volúmenes de suero */}
+            {/* Menú desplegable de Fluidos */}
             {showFluidPicker && (
-              <div className="absolute top-full left-0 mt-1 w-44 bg-[#0F172A] border border-sky-600/60 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
-                <div className="text-[10px] text-sky-400 font-bold px-1 py-0.5 border-b border-slate-700">
-                  Seleccionar Volumen SF 0.9%:
+              <div className="absolute top-full left-0 mt-1 w-56 bg-[#0F172A] border border-sky-600/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1.5 text-xs font-mono">
+                <div className="text-[10px] text-sky-400 font-bold px-1 py-0.5 border-b border-slate-700 flex items-center justify-between">
+                  <span>TIPO DE CRISTALOIDE:</span>
+                  <span className="text-[9px] text-slate-400">ATLS / ACLS</span>
+                </div>
+                
+                {/* Selector Ringer vs SF */}
+                <div className="grid grid-cols-2 gap-1 p-0.5 bg-slate-900 rounded-lg border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFluidType('ringer')}
+                    className={`py-1 text-[10px] rounded font-bold transition ${
+                      selectedFluidType === 'ringer'
+                        ? 'bg-sky-600 text-slate-950'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Ringer Lactato
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFluidType('saline')}
+                    className={`py-1 text-[10px] rounded font-bold transition ${
+                      selectedFluidType === 'saline'
+                        ? 'bg-sky-600 text-slate-950'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    SF 0.9%
+                  </button>
+                </div>
+
+                <div className="text-[10px] text-slate-400 px-1">
+                  {selectedFluidType === 'ringer' 
+                    ? '💡 Balanceado (ATLS 1ª línea para shock y trauma)' 
+                    : '💡 Mayor osmolaridad (preferido en TEC / neuro)'}
+                </div>
+
+                <div className="text-[10px] text-sky-300 font-bold px-1 pt-1 border-t border-slate-800">
+                  SELECCIONAR VOLUMEN BOLO:
                 </div>
                 {[250, 500, 1000, 2000].map((ml) => (
                   <button
                     key={ml}
                     onClick={() => {
-                      onAdministerFluids(ml);
+                      onAdministerFluids(ml, selectedFluidType);
                       setShowFluidPicker(false);
                     }}
                     className="p-1.5 rounded hover:bg-sky-900/60 text-left text-slate-200 flex items-center justify-between"
                   >
-                    <span>💧 {ml} ml IV</span>
+                    <span>💧 {ml} ml {selectedFluidType === 'ringer' ? 'RL' : 'SF'}</span>
                     <span className="text-[10px] text-sky-400 font-bold">Infundir</span>
                   </button>
                 ))}
@@ -412,10 +472,17 @@ export default function CommandConsole({
             )}
           </div>
 
-          {/* Administrar Oxígeno con Selector de Dispositivo */}
+          {/* 2. Administrar Oxígeno con Selector de Dispositivo */}
           <div className="relative">
             <button
-              onClick={() => setShowO2Picker(!showO2Picker)}
+              onClick={() => {
+                setShowO2Picker(!showO2Picker);
+                setShowFluidPicker(false);
+                setShowAdrenalineMenu(false);
+                setShowAtropineMenu(false);
+                setShowAmiodaroneMenu(false);
+                setShowOtherDrugsMenu(false);
+              }}
               className={`w-full p-2 rounded-lg active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm border ${
                 oxygenDevice !== 'none'
                   ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200'
@@ -461,7 +528,311 @@ export default function CommandConsole({
             )}
           </div>
 
-          {/* Examen Físico, POCUS y Laboratorio (Claves 5H y 5T) */}
+          {/* 3. Adrenalina con Selector de Dosis e Infusión */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowAdrenalineMenu(!showAdrenalineMenu);
+                setShowFluidPicker(false);
+                setShowO2Picker(false);
+                setShowAtropineMenu(false);
+                setShowAmiodaroneMenu(false);
+                setShowOtherDrugsMenu(false);
+              }}
+              className="w-full p-2 rounded-lg bg-amber-950/70 hover:bg-amber-900/90 active:scale-95 text-amber-200 border border-amber-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+              title="Adrenalina: Seleccionar bolo (1mg estándar, 0.5mg, 2mg) o infusión continua (2-10 mcg/min)"
+            >
+              <Syringe className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-bold font-mono">Adrenalina</span>
+              <span className="text-[9px] text-amber-400/80 font-mono">Dosis ▼</span>
+            </button>
+
+            {/* Menú de Dosis de Adrenalina */}
+            {showAdrenalineMenu && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-[#0F172A] border border-amber-500/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
+                <div className="text-[10px] text-amber-400 font-bold px-1 py-0.5 border-b border-slate-700">
+                  DOSIS ADRENALINA ACLS:
+                </div>
+                <button
+                  onClick={() => {
+                    onAdministerAdrenaline('1mg', false);
+                    setShowAdrenalineMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-amber-950/80 text-left text-slate-200 flex flex-col border border-amber-600/40"
+                >
+                  <div className="flex items-center justify-between text-amber-300 font-bold">
+                    <span>⚡ 1 mg IV Bolo</span>
+                    <span className="text-[9px] bg-amber-900/60 px-1 rounded text-amber-200">ACLS Paro</span>
+                  </div>
+                  <span className="text-[9px] text-slate-400">Estándar c/3-5 min + flush 20ml</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onAdministerAdrenaline('0.5mg', false);
+                    setShowAdrenalineMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-slate-800 text-left text-slate-300 flex flex-col"
+                >
+                  <span className="font-semibold">⚠️ 0.5 mg IV Bolo</span>
+                  <span className="text-[9px] text-slate-400">Subterapéutico en paro adulto</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onAdministerAdrenaline('2mg', false);
+                    setShowAdrenalineMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-slate-800 text-left text-slate-300 flex flex-col"
+                >
+                  <span className="font-semibold">⚠️ 2 mg IV Bolo</span>
+                  <span className="text-[9px] text-slate-400">Dosis alta (desaconsejada)</span>
+                </button>
+                <div className="text-[10px] text-amber-400 font-bold px-1 pt-1 border-t border-slate-800">
+                  INFUSIÓN CONTINUA:
+                </div>
+                <button
+                  onClick={() => {
+                    onAdministerAdrenaline(null, true, '2-10 mcg/min');
+                    setShowAdrenalineMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-amber-950/80 text-left text-slate-200 flex flex-col border border-amber-500/30"
+                >
+                  <div className="flex items-center justify-between text-amber-300 font-bold">
+                    <span>💧 Infusión 2-10 mcg/min</span>
+                  </div>
+                  <span className="text-[9px] text-slate-400">Bradicardia refractaria / Pos-RCE</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 4. Atropina con Selector de Dosis AHA 2020 */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowAtropineMenu(!showAtropineMenu);
+                setShowFluidPicker(false);
+                setShowO2Picker(false);
+                setShowAdrenalineMenu(false);
+                setShowAmiodaroneMenu(false);
+                setShowOtherDrugsMenu(false);
+              }}
+              className="w-full p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+              title="Atropina: Primera línea en bradicardia sintomática (AHA 2020 recomienda dosis inicial de 1mg)"
+            >
+              <Syringe className="w-4 h-4 text-teal-400" />
+              <span className="text-xs font-bold font-mono">Atropina</span>
+              <span className="text-[9px] text-teal-400/80 font-mono">Dosis AHA ▼</span>
+            </button>
+
+            {/* Menú de Dosis de Atropina */}
+            {showAtropineMenu && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-[#0F172A] border border-teal-500/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
+                <div className="text-[10px] text-teal-400 font-bold px-1 py-0.5 border-b border-slate-700">
+                  DOSIS ATROPINA (AHA 2020):
+                </div>
+                <button
+                  onClick={() => {
+                    onAdministerAtropine('1mg');
+                    setShowAtropineMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-teal-950/80 text-left text-slate-200 flex flex-col border border-teal-500/40"
+                >
+                  <div className="flex items-center justify-between text-teal-300 font-bold">
+                    <span>🌟 1 mg IV Bolo</span>
+                    <span className="text-[9px] bg-teal-900/60 px-1 rounded text-teal-200">AHA 2020</span>
+                  </div>
+                  <span className="text-[9px] text-slate-400">Dosis inicial de 1ª línea para bradicardia</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onAdministerAtropine('0.5mg');
+                    setShowAtropineMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-slate-800 text-left text-slate-300 flex flex-col"
+                >
+                  <span className="font-semibold">⚠️ 0.5 mg IV Bolo</span>
+                  <span className="text-[9px] text-slate-400">Dosis previa (riesgo bradicardia paradójica)</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onAdministerAtropine('3mg');
+                    setShowAtropineMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-slate-800 text-left text-slate-300 flex flex-col"
+                >
+                  <span className="font-semibold">🛑 3 mg IV Bolo</span>
+                  <span className="text-[9px] text-slate-400">Dosis máxima acumulada (bloqueo total)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Amiodarona con Selector de Dosis ACLS */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowAmiodaroneMenu(!showAmiodaroneMenu);
+                setShowFluidPicker(false);
+                setShowO2Picker(false);
+                setShowAdrenalineMenu(false);
+                setShowAtropineMenu(false);
+                setShowOtherDrugsMenu(false);
+              }}
+              className="w-full p-2 rounded-lg bg-purple-950/70 hover:bg-purple-900/90 active:scale-95 text-purple-200 border border-purple-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+              title="Amiodarona: 300mg tras 3er choque, 150mg tras 5° choque, o infusión"
+            >
+              <Syringe className="w-4 h-4 text-purple-400" />
+              <span className="text-xs font-bold font-mono">Amiodarona</span>
+              <span className="text-[9px] text-purple-400/80 font-mono">Dosis ▼</span>
+            </button>
+
+            {/* Menú de Dosis de Amiodarona */}
+            {showAmiodaroneMenu && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-[#0F172A] border border-purple-500/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
+                <div className="text-[10px] text-purple-400 font-bold px-1 py-0.5 border-b border-slate-700">
+                  DOSIS AMIODARONA ACLS:
+                </div>
+                <button
+                  onClick={() => {
+                    onAdministerAmiodarone('300mg');
+                    setShowAmiodaroneMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-purple-950/80 text-left text-slate-200 flex flex-col border border-purple-500/40"
+                >
+                  <div className="flex items-center justify-between text-purple-300 font-bold">
+                    <span>⚡ 300 mg IV Bolo</span>
+                    <span className="text-[9px] bg-purple-900/60 px-1 rounded text-purple-200">1ª Dosis Paro</span>
+                  </div>
+                  <span className="text-[9px] text-slate-400">FV / TV sin pulso tras 3er choque</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onAdministerAmiodarone('150mg');
+                    setShowAmiodaroneMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-purple-950/80 text-left text-slate-200 flex flex-col border border-purple-600/30"
+                >
+                  <div className="flex items-center justify-between text-purple-300 font-bold">
+                    <span>⚡ 150 mg IV Bolo</span>
+                    <span className="text-[9px] bg-purple-900/60 px-1 rounded text-purple-200">2ª Dosis Paro</span>
+                  </div>
+                  <span className="text-[9px] text-slate-400">FV / TV refractaria tras 5° choque</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onAdministerAmiodarone('150mg-infusion');
+                    setShowAmiodaroneMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-slate-800 text-left text-slate-300 flex flex-col"
+                >
+                  <span className="font-semibold">💧 150 mg en 10 min</span>
+                  <span className="text-[9px] text-slate-400">TV con pulso / taquicardia estable</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 6. Otros Fármacos ACLS (Adenosina, Magnesio, Noradrenalina, Calcio, Bicarbonato) */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowOtherDrugsMenu(!showOtherDrugsMenu);
+                setShowFluidPicker(false);
+                setShowO2Picker(false);
+                setShowAdrenalineMenu(false);
+                setShowAtropineMenu(false);
+                setShowAmiodaroneMenu(false);
+              }}
+              className="w-full p-2 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/90 active:scale-95 text-indigo-200 border border-indigo-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+              title="Otros fármacos: Adenosina (TSV), Sulfato de Magnesio (Torsades), Noradrenalina, Calcio, Bicarbonato"
+            >
+              <Syringe className="w-4 h-4 text-indigo-400" />
+              <span className="text-xs font-bold font-mono">Otros Fármacos</span>
+              <span className="text-[9px] text-indigo-400/80 font-mono">ACLS / H y T ▼</span>
+            </button>
+
+            {/* Menú de Otros Fármacos */}
+            {showOtherDrugsMenu && (
+              <div className="absolute top-full right-0 sm:left-0 mt-1 w-64 bg-[#0F172A] border border-indigo-500/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
+                <div className="text-[10px] text-indigo-400 font-bold px-1 py-0.5 border-b border-slate-700">
+                  FÁRMACOS ESPECÍFICOS ACLS / 5H y 5T:
+                </div>
+                <button
+                  onClick={() => {
+                    handleAction('Administrar Adenosina 6 mg IV en bolo ultra rápido con flush de 20 ml SF');
+                    setShowOtherDrugsMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-indigo-950 text-left text-slate-200 flex flex-col"
+                >
+                  <span className="font-bold text-indigo-300">⚡ Adenosina 6 mg IV Bolo Rápido</span>
+                  <span className="text-[9px] text-slate-400">1ª dosis TSV paroxística + flush 20ml</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleAction('Administrar Adenosina 12 mg IV en bolo ultra rápido con flush de 20 ml SF');
+                    setShowOtherDrugsMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-indigo-950 text-left text-slate-200 flex flex-col"
+                >
+                  <span className="font-bold text-indigo-300">⚡ Adenosina 12 mg IV Bolo Rápido</span>
+                  <span className="text-[9px] text-slate-400">2ª dosis TSV si no revierte en 1-2 min</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleAction('Administrar Sulfato de Magnesio 2 g IV en bolo lento');
+                    setShowOtherDrugsMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-indigo-950 text-left text-slate-200 flex flex-col"
+                >
+                  <span className="font-bold text-indigo-300">⚡ Sulfato de Magnesio 2 g IV</span>
+                  <span className="text-[9px] text-slate-400">Torsades de Pointes / QT prolongado / Hipomagnesemia</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleAction('Iniciar infusión continua de Noradrenalina a 0.2 mcg/kg/min');
+                    setShowOtherDrugsMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-indigo-950 text-left text-slate-200 flex flex-col"
+                >
+                  <span className="font-bold text-indigo-300">💧 Noradrenalina 0.1-0.5 mcg/kg/min</span>
+                  <span className="text-[9px] text-slate-400">Vasopresor de elección en shock Pos-RCE</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleAction('Administrar Gluconato de Calcio 1 g IV al 10% lento en 3 minutos');
+                    setShowOtherDrugsMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-indigo-950 text-left text-slate-200 flex flex-col"
+                >
+                  <span className="font-bold text-indigo-300">🛡️ Gluconato de Calcio 1 g IV</span>
+                  <span className="text-[9px] text-slate-400">Estabilizador de membrana en Hiperpotasemia</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleAction('Administrar Bicarbonato de Sodio 1 mEq/kg IV');
+                    setShowOtherDrugsMenu(false);
+                  }}
+                  className="p-1.5 rounded hover:bg-indigo-950 text-left text-slate-200 flex flex-col"
+                >
+                  <span className="font-bold text-indigo-300">🧪 Bicarbonato de Sodio 1 mEq/kg IV</span>
+                  <span className="text-[9px] text-slate-400">Acidosis metabólica severa / Intoxicación ADT</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 7. Desfibrilar 200J */}
+          <button
+            onClick={() => handleAction('Despejar área y aplicar descarga de desfibrilación 200J')}
+            className="p-2 rounded-lg bg-red-950/70 hover:bg-red-900/90 active:scale-95 text-red-200 border border-red-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+            title="Para FV o TV sin pulso: Descarga de 200J bifásica sincronizada o asincrónica"
+          >
+            <Zap className="w-4 h-4 text-red-400" />
+            <span className="text-xs font-bold font-mono">Desfibrilar</span>
+            <span className="text-[9px] text-red-400/80 font-mono">200J (FV/TVSP)</span>
+          </button>
+
+          {/* 8. Examen Físico, POCUS y Laboratorio (Claves 5H y 5T) */}
           <button
             onClick={onOpenClinicalExam}
             className="p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
@@ -472,7 +843,7 @@ export default function CommandConsole({
             <span className="text-[9px] text-teal-300/80 font-mono">Hallazgos Clave</span>
           </button>
 
-          {/* Investigar y Tratar Causas 5H y 5T */}
+          {/* 9. Investigar y Tratar Causas 5H y 5T */}
           <button
             onClick={onOpenHyt}
             className="p-2 rounded-lg bg-amber-950/60 hover:bg-amber-900/80 active:scale-95 text-amber-200 border border-amber-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
@@ -483,40 +854,7 @@ export default function CommandConsole({
             <span className="text-[9px] text-amber-400/90 font-mono">Tratamientos</span>
           </button>
 
-          {/* Desfibrilar 200J */}
-          <button
-            onClick={() => handleAction('Despejar área y aplicar descarga de desfibrilación 200J')}
-            className="p-2 rounded-lg bg-red-950/60 hover:bg-red-900/80 active:scale-95 text-red-200 border border-red-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Para FV o TV sin pulso"
-          >
-            <Zap className="w-4 h-4 text-red-400" />
-            <span className="text-xs font-bold font-mono">Desfibrilar</span>
-            <span className="text-[9px] text-red-400/80 font-mono">200J (FV/TVSP)</span>
-          </button>
-
-          {/* Adrenalina 1mg */}
-          <button
-            onClick={() => handleAction('Administrar Adrenalina 1 mg IV en bolo rápido con flush de 20 ml')}
-            className="p-2 rounded-lg bg-amber-950/60 hover:bg-amber-900/80 active:scale-95 text-amber-200 border border-amber-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Adrenalina 1mg IV cada 3-5 minutos"
-          >
-            <Syringe className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-bold font-mono">Adrenalina</span>
-            <span className="text-[9px] text-amber-400/80 font-mono">1 mg IV Bolo</span>
-          </button>
-
-          {/* Amiodarona 300mg */}
-          <button
-            onClick={() => handleAction('Administrar Amiodarona 300 mg IV en bolo')}
-            className="p-2 rounded-lg bg-purple-950/60 hover:bg-purple-900/80 active:scale-95 text-purple-200 border border-purple-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Antiarrítmico tras 3er choque en FV/TV refractaria"
-          >
-            <Syringe className="w-4 h-4 text-purple-400" />
-            <span className="text-xs font-bold font-mono">Amiodarona</span>
-            <span className="text-[9px] text-purple-400/80 font-mono">300 mg Bolo</span>
-          </button>
-
-          {/* Botón IA Evaluadora de la Pauta */}
+          {/* 10. Botón IA Evaluadora de la Pauta */}
           <button
             onClick={onOpenAiEvaluation}
             className="p-2 rounded-lg bg-gradient-to-r from-emerald-950/80 to-cyan-950/80 hover:from-emerald-900 hover:to-cyan-900 border border-cyan-500/70 text-cyan-200 active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"

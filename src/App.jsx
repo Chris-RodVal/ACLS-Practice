@@ -643,7 +643,7 @@ export default function App() {
     addLog('Sistema', '⏩ Tiempo de reanimación avanzado en +30 segundos.', 'info');
   };
 
-  // 3. Intubación Endotraqueal (Pausa realista de 30 segundos)
+  // 3. Intubación Endotraqueal (Pausa realista de 30 segundos si está en PCR)
   const handleStartIntubation = () => {
     if (hasSecuredAirway) {
       addLog('Vía Aérea', 'El paciente ya cuenta con Tubo Endotraqueal fijado y capnografía conectada.', 'info');
@@ -652,22 +652,62 @@ export default function App() {
     if (isIntubating) return;
     setIsIntubating(true);
     setIntubationTimer(30);
+
+    const isArrestOrCpr = phase === 'arrest' || isCprActive;
     if (isCprActive) {
       setIsCprActive(false);
       soundEngine.stopMetronome();
     }
-    addLog('Vía Aérea', '🩺 Procedimiento de Intubación Endotraqueal iniciado: PAUSA DE COMPRESIONES (máximo 30 segundos permitidos según ACLS). Alineando ejes orofaríngeos, laringoscopía y paso de tubo endotraqueal #8.0 con fiador.', 'warning');
-    soundEngine.speak('Pausa de compresiones para intubación orotraqueal.', 'system');
+
+    if (isArrestOrCpr) {
+      addLog('Vía Aérea', '🩺 Procedimiento de Intubación Endotraqueal en paro: PAUSA DE COMPRESIONES (máximo 30 segundos permitidos según ACLS). Alineando ejes orofaríngeos, laringoscopía y paso de tubo endotraqueal #8.0 con fiador.', 'warning');
+      soundEngine.speak('Pausa de compresiones para intubación orotraqueal.', 'system');
+    } else {
+      addLog('Vía Aérea', '🩺 Procedimiento de Intubación Endotraqueal en secuencia rápida: Paciente con pulso, preoxigenación adecuada, laringoscopía y paso de tubo #8.0 con fiador sin pausa de masaje.', 'info');
+      soundEngine.speak('Iniciando intubación orotraqueal en secuencia rápida.', 'system');
+    }
   };
 
-  // 4. Administrar Suero Fisiológico (volumen en ml con impacto hemodinámico)
-  const handleAdministerFluids = (volume = 500) => {
+  // 4. Administrar Fluidos IV (Ringer Lactato vs Suero Fisiológico con impacto hemodinámico y ATLS)
+  const handleAdministerFluids = (volume = 500, fluidType = 'ringer') => {
     const newTotal = infusedVolumeMl + volume;
     setInfusedVolumeMl(newTotal);
     setHasGivenVolume(true);
 
-    let hemodynamicNote = '';
+    const fluidLabel = fluidType === 'ringer' ? 'Ringer Lactato' : 'Suero Fisiológico 0.9%';
+    const caseText = (currentCase.title + ' ' + currentCase.hytCategory + ' ' + (currentCase.patient?.presentation || '')).toLowerCase();
+    const isTraumaOrHypovolemic = caseText.includes('shock') ||
+      caseText.includes('hemorragia') ||
+      caseText.includes('trauma') ||
+      caseText.includes('deshidratacion') ||
+      caseText.includes('hipovolemia');
+    const isNeuro = caseText.includes('neuro') || caseText.includes('tec') || caseText.includes('raquimedular');
 
+    let outcomeLog = '';
+    let efficacyBonus = 1.0;
+
+    if (fluidType === 'ringer') {
+      if (isTraumaOrHypovolemic) {
+        efficacyBonus = 1.25;
+        outcomeLog = '🌟 ¡Excelente elección ATLS!: Ringer Lactato es el cristaloide balanceado de 1ª línea para resucitación en shock/trauma. Previene acidosis hiperclorémica y protege la función renal.';
+      } else if (isNeuro) {
+        outcomeLog = 'Nota neurocrítica: Ringer Lactato administrado. En TEC/edema cerebral severo se prefiere SF 0.9% por mayor osmolaridad (308 mOsm/L vs 273 mOsm/L).';
+      } else {
+        outcomeLog = 'Cristaloide balanceado infundido con excelente tolerancia fisiológica.';
+      }
+    } else { // Suero Fisiológico 0.9%
+      if (isTraumaOrHypovolemic && newTotal >= 1000) {
+        efficacyBonus = 0.85;
+        outcomeLog = '⚠️ Alerta ATLS: Grandes volúmenes de SF 0.9% (>1L) inducen acidosis metabólica hiperclorémica y vasoconstricción renal. En trauma y hemorragia la guía ATLS prioriza Ringer Lactato.';
+      } else if (isNeuro) {
+        efficacyBonus = 1.25;
+        outcomeLog = '🌟 ¡Excelente elección en neurotrauma/TEC!: Suero Fisiológico 0.9% aporta 308 mOsm/L, previniendo el edema cerebral secundario.';
+      } else {
+        outcomeLog = 'Expansión de volumen con SF 0.9% completada.';
+      }
+    }
+
+    let hemodynamicNote = '';
     if (pulsePresent) {
       const parts = bp.split('/');
       let sys = parseInt(parts[0], 10) || 80;
@@ -675,23 +715,23 @@ export default function App() {
 
       const isHypotensive = sys < 95;
       if (isHypotensive) {
-        const sysRise = Math.min(35, Math.round((volume / 500) * 16));
-        const diaRise = Math.min(22, Math.round((volume / 500) * 10));
+        const sysRise = Math.round(Math.min(40, (volume / 500) * 16 * efficacyBonus));
+        const diaRise = Math.round(Math.min(24, (volume / 500) * 10 * efficacyBonus));
         sys += sysRise;
         dia += diaRise;
         setBp(`${sys}/${dia}`);
 
-        if (hr > 110) {
-          const hrDrop = Math.min(25, Math.round((volume / 500) * 14));
+        if (hr > 105) {
+          const hrDrop = Math.round(Math.min(25, (volume / 500) * 12 * efficacyBonus));
           setHr((prev) => Math.max(75, prev - hrDrop));
         }
-        setSpo2((prev) => Math.min(98, prev + 2));
-        hemodynamicNote = `Respuesta hemodinámica favorable: PA se eleva a ${sys}/${dia} mmHg, mejoría de llenado capilar y gasto cardíaco.`;
+        setSpo2((prev) => Math.min(99, prev + 2));
+        hemodynamicNote = `Respuesta hemodinámica: PA se eleva a ${sys}/${dia} mmHg (PAM ${Math.round((sys + 2*dia)/3)} mmHg).`;
       } else {
-        hemodynamicNote = `PA se mantiene en ${sys}/${dia} mmHg con adecuada perfusión tisular.`;
+        hemodynamicNote = `PA estable en ${sys}/${dia} mmHg con adecuada volemia.`;
       }
     } else {
-      hemodynamicNote = 'Expansión de volumen intravascular en curso para optimizar retorno venoso durante compresiones.';
+      hemodynamicNote = 'Aumento de precarga intravascular para optimizar presión de perfusión coronaria (PPC) durante compresiones.';
     }
 
     if (currentCase.hytCategory.toLowerCase().includes('hipovolemia')) {
@@ -699,15 +739,107 @@ export default function App() {
         setTreatedCauses((prev) => [...prev, 'hipovolemia']);
       }
       setHasIdentifiedHyt(true);
-      hemodynamicNote += ' ¡Causa reversible primaria (Hipovolemia) corregida!';
+      hemodynamicNote += ' ¡Causa reversible primaria (Hipovolemia) tratada!';
     }
 
-    if (newTotal > 2000 && !currentCase.hytCategory.toLowerCase().includes('hipovolemia')) {
-      hemodynamicNote += ' ⚠️ Alerta: Volumen acumulado > 2000 ml. Monitorear crepitaciones pulmonares por riesgo de sobrecarga hídrica.';
+    addLog('Fármacos y Fluidos', `💧 Infundido bolo de ${volume} ml de ${fluidLabel} IV. Total infundido: ${newTotal} ml. ${outcomeLog} ${hemodynamicNote}`, 'success');
+    soundEngine.speak(`Bolo de ${volume} mililitros de ${fluidType === 'ringer' ? 'Ringer Lactato' : 'suero fisiológico'} administrado.`, 'system');
+  };
+
+  // 4b. Administrar Adrenalina con selección de dosis e infusión
+  const handleAdministerAdrenaline = (dose = '1mg', isInfusion = false, rate = '2-10 mcg/min') => {
+    if (isInfusion) {
+      if (phase === 'arrest') {
+        const err = 'Alerta de Dosis: En PCR la Adrenalina debe administrarse en BOLO IV rápido de 1 mg cada 3-5 minutos, no en infusión continua.';
+        addLog('Docente Evaluador', `⚠️ ${err}`, 'warning');
+        soundEngine.speak('En paro cardiorrespiratorio la adrenalina se administra en bolo, no en infusión.', 'system');
+      } else if (phase === 'initial' && currentCase.type === 'bradicardia') {
+        addLog('Fármacos', `💉 Iniciada infusión continua de Adrenalina a ${rate} IV (segunda línea según algoritmo AHA 2020 para bradicardia refractaria).`, 'success');
+        setHr((prev) => Math.min(64, prev + 18));
+        setBp('96/60');
+        soundEngine.speak('Infusión continua de adrenalina iniciada a dos a diez microgramos por minuto.', 'system');
+      } else if (phase === 'post_rce') {
+        addLog('Fármacos', `💉 Iniciada infusión continua de Adrenalina a ${rate} IV para optimización hemodinámica posparo (soporte inotrópico/vasopresor).`, 'success');
+        setBp('108/68');
+        soundEngine.speak('Infusión de adrenalina iniciada para soporte posparo.', 'system');
+      } else {
+        addLog('Fármacos', `💉 Infusión continua de Adrenalina a ${rate} administrada.`, 'info');
+      }
+      return;
     }
 
-    addLog('Fármacos / Vía Venosa', `💧 Infundido bolo de ${volume} ml de Suero Fisiológico 0.9% IV a chorro. Volumen acumulado: ${newTotal} ml. ${hemodynamicNote}`, 'success');
-    soundEngine.speak(`Bolo de ${volume} mililitros de suero fisiológico administrado.`, 'system');
+    // Bolo IV
+    if (phase === 'arrest') {
+      setAdrenalineCount((prev) => prev + 1);
+      if (dose === '1mg') {
+        addLog('Fármacos', '💉 ¡Dosis Correcta ACLS!: Administrado Adrenalina 1 mg IV en bolo rápido con flush de 20 ml SF y elevación de extremidad.', 'success');
+        soundEngine.speak('Adrenalina un miligramo intravenoso administrado en bolo.', 'system');
+        if (currentCase.arrestType === 'AESP' || currentCase.arrestType === 'ASISTOLIA') {
+          addLog('ACLS', 'Excelente: Adrenalina administrada de forma temprana en ritmo no desfibrilable (primeros minutos).', 'success');
+        }
+      } else if (dose === '0.5mg') {
+        addLog('Docente Evaluador', '⚠️ Dosis Subóptima: Administró Adrenalina 0.5 mg. En PCR de adulto la dosis estándar según guías AHA es 1 mg IV cada 3-5 min.', 'warning');
+        soundEngine.speak('Advertencia: Dosis subóptima de adrenalina administrada.', 'system');
+      } else if (dose === '2mg') {
+        addLog('Docente Evaluador', '⚠️ Dosis Excesiva: Administró Adrenalina 2 mg. Las dosis altas no están recomendadas de rutina por mayor toxicidad miocárdica y vasoconstricción cerebral.', 'warning');
+        soundEngine.speak('Advertencia: Dosis alta de adrenalina administrada.', 'system');
+      }
+    } else {
+      const err = 'Error Crítico: Administró bolo rápido de Adrenalina en paciente con pulso (riesgo severo de crisis hipertensiva, hemorragia o inducción de FV).';
+      setCriticalErrors((prev) => [...prev, err]);
+      addLog('Docente Evaluador', `❌ ${err}`, 'error');
+      soundEngine.speak('Error crítico: Adrenalina en bolo contraindicada con pulso.', 'system');
+    }
+  };
+
+  // 4c. Administrar Atropina con selección de dosis
+  const handleAdministerAtropine = (dose = '1mg') => {
+    setHasGivenAtropine(true);
+    if (phase === 'initial' && currentCase.type === 'bradicardia') {
+      if (dose === '1mg') {
+        addLog('Fármacos', '💉 ¡Dosis Correcta AHA 2020!: Administrado Atropina 1 mg IV en bolo rápido de primera línea.', 'success');
+        setHr(48);
+        setBp('84/52');
+        addLog('Monitor', 'Frecuencia cardíaca aumenta a 48 lpm. Persiste bradicardia sintomática; preparar marcapasos o infusión si no mejora.', 'info');
+        soundEngine.speak('Atropina un miligramo administrada. Respuesta parcial observada.', 'system');
+      } else if (dose === '0.5mg') {
+        addLog('Docente Evaluador', '⚠️ Advertencia de Dosis: Administró Atropina 0.5 mg. Las guías AHA 2020 actualizaron la dosis inicial de Atropina a 1 mg IV (dosis menores a 0.5 mg pueden provocar bradicardia paradójica por estimulación vagal central).', 'warning');
+        setHr(42);
+        soundEngine.speak('Dosis subóptima de atropina. Puede inducir bradicardia paradójica.', 'system');
+      } else if (dose === '3mg') {
+        addLog('Fármacos', '💉 Atropina 3 mg IV bolo administrada (dosis acumulada máxima permitida por algoritmo). Bloqueo vagal completo alcanzado.', 'info');
+        setHr(50);
+        soundEngine.speak('Dosis máxima acumulada de atropina administrada.', 'system');
+      }
+    } else if (phase === 'arrest') {
+      const err = 'Error: La Atropina ya NO forma parte del algoritmo de PCR (AESP / Asistolia) según las guías ACLS de la AHA.';
+      setCriticalErrors((prev) => [...prev, err]);
+      addLog('Docente Evaluador', `❌ ${err}`, 'error');
+      soundEngine.speak('Error: Atropina no forma parte del algoritmo de paro.', 'system');
+    } else {
+      addLog('Docente Evaluador', '⚠️ Atropina no indicada: el paciente no presenta bradicardia sintomática.', 'warning');
+    }
+  };
+
+  // 4d. Administrar Amiodarona con selección de dosis
+  const handleAdministerAmiodarone = (dose = '300mg') => {
+    if (phase === 'arrest' && currentCase.isShockable) {
+      setAmiodaroneCount((prev) => prev + 1);
+      if (dose === '300mg') {
+        addLog('Fármacos', '💉 ¡Dosis Correcta ACLS!: Administrado Amiodarona 300 mg IV en bolo rápido para FV/TV refractaria (tras 3er choque).', 'success');
+        soundEngine.speak('Amiodarona trescientos miligramos en bolo administrada.', 'system');
+      } else if (dose === '150mg') {
+        addLog('Fármacos', '💉 Administrado Amiodarona 150 mg IV en bolo rápido (segunda dosis ACLS tras 5° choque).', 'success');
+        soundEngine.speak('Amiodarona ciento cincuenta miligramos administrada.', 'system');
+      } else {
+        addLog('Fármacos', `💉 Amiodarona ${dose} administrada.`, 'info');
+      }
+    } else if (phase === 'initial' && currentCase.type === 'taquicardia') {
+      addLog('Fármacos', '💉 Infusión de Amiodarona 150 mg en 100 ml SG 5% a pasar en 10 minutos para taquiarritmia de complejo ancho estable.', 'success');
+      soundEngine.speak('Infusión de amiodarona iniciada.', 'system');
+    } else {
+      addLog('Docente Evaluador', '⚠️ Amiodarona indicada principalmente en FV/TV sin pulso refractaria a descargas o taquicardia ventricular con pulso.', 'warning');
+    }
   };
 
   // 5. Evaluación Inteligente con IA
@@ -805,7 +937,7 @@ export default function App() {
         break;
 
       case 'GIVE_FLUIDS':
-        handleAdministerFluids(parsed.volume || 500);
+        handleAdministerFluids(parsed.volume || 500, parsed.fluidType || 'ringer');
         break;
 
       case 'START_CPR':
@@ -830,42 +962,15 @@ export default function App() {
         break;
 
       case 'GIVE_ADRENALINE':
-        if (phase === 'arrest') {
-          setAdrenalineCount((prev) => prev + 1);
-          addLog('Fármacos', 'Administrado Adrenalina 1 mg IV en bolo rápido, seguido de flush de 20 ml de SF y elevación de extremidad.', 'success');
-          if (currentCase.arrestType === 'AESP' || currentCase.arrestType === 'ASISTOLIA') {
-            addLog('ACLS', 'Excelente: Adrenalina administrada de forma temprana en ritmo no desfibrilable.', 'success');
-          }
-        } else {
-          addLog('Docente Evaluador', '⚠️ Paciente no está en paro cardiorrespiratorio. Adrenalina 1mg IV en bolo está contraindicada en este momento.', 'warning');
-        }
+        handleAdministerAdrenaline(parsed.dose || '1mg', parsed.isInfusion || false, parsed.rate || '2-10 mcg/min');
         break;
 
       case 'GIVE_AMIODARONE':
-        if (phase === 'arrest' && currentCase.isShockable) {
-          setAmiodaroneCount((prev) => prev + 1);
-          const dose = parsed.isSecondDose || amiodaroneCount >= 1 ? '150 mg' : '300 mg';
-          addLog('Fármacos', `Administrado Amiodarona ${dose} IV en bolo para FV/TV refractaria a descargas.`, 'success');
-        } else {
-          addLog('Fármacos', 'Amiodarona preparada según protocolo.', 'info');
-        }
+        handleAdministerAmiodarone(parsed.dose || '300mg');
         break;
 
       case 'GIVE_ATROPINE':
-        setHasGivenAtropine(true);
-        if (currentCase.type === 'bradicardia' && phase === 'initial') {
-          addLog('Fármacos', 'Administrado Atropina 1 mg IV en bolo rápido (dosis estándar guías AHA actualizadas).', 'success');
-          // Partial response
-          setHr(48);
-          setBp('82/50');
-          addLog('Monitor', 'Frecuencia cardíaca aumenta transitoriamente a 48 lpm, persiste hipotensión. Se requiere preparar terapia de 2da línea.', 'info');
-        } else if (phase === 'arrest') {
-          const err = 'Error: Atropina ya NO forma parte del algoritmo de PCR (AESP / Asistolia) según las guías ACLS de la AHA.';
-          setCriticalErrors((prev) => [...prev, err]);
-          addLog('Docente Evaluador', `❌ ${err}`, 'error');
-        } else {
-          addLog('Fármacos', 'Atropina administrada.', 'info');
-        }
+        handleAdministerAtropine(parsed.dose || '1mg');
         break;
 
       case 'GIVE_ADENOSINA':
@@ -1184,6 +1289,9 @@ export default function App() {
           intubationTimer={intubationTimer}
           onAdministerFluids={handleAdministerFluids}
           infusedVolumeMl={infusedVolumeMl}
+          onAdministerAdrenaline={handleAdministerAdrenaline}
+          onAdministerAtropine={handleAdministerAtropine}
+          onAdministerAmiodarone={handleAdministerAmiodarone}
           onOpenAiEvaluation={handleOpenAiEvaluation}
           aiScorePreview={aiScorePreview}
           hasTtm={hasTtm}

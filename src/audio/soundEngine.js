@@ -135,7 +135,7 @@ class ClinicalSoundEngine {
     }
   }
 
-  // Defibrillator Discharge Shock Thump
+  // Defibrillator Discharge Shock Thump ("¡PUM! ⚡" - Impacto visceral de descarga eléctrica de alto voltaje)
   playShock() {
     this.stopCharge();
     if (this.muted) return;
@@ -144,20 +144,61 @@ class ClinicalSoundEngine {
 
     try {
       const now = this.ctx.currentTime;
+
+      // 1. Visceral Sub-bass Impact / Shock Thump ("PUM")
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(120, now);
-      osc.frequency.exponentialRampToValueAtTime(30, now + 0.25);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(32, now + 0.38);
 
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      gain.gain.setValueAtTime(0.95, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.3);
-    } catch (e) {}
+      osc.stop(now + 0.48);
+
+      // 2. High-Voltage Electric Arc Transient ("KZZT")
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.12);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.022));
+      }
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const noiseFilter = this.ctx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.setValueAtTime(1500, now);
+      noiseFilter.Q.setValueAtTime(1.5, now);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.7, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(this.ctx.destination);
+      noise.start(now);
+
+      // 3. Mechanical Capacitor Relay Clack (t=0)
+      const clickOsc = this.ctx.createOscillator();
+      const clickGain = this.ctx.createGain();
+      clickOsc.type = 'triangle';
+      clickOsc.frequency.setValueAtTime(700, now);
+      clickOsc.frequency.exponentialRampToValueAtTime(120, now + 0.035);
+      clickGain.gain.setValueAtTime(0.6, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+      clickOsc.connect(clickGain);
+      clickGain.connect(this.ctx.destination);
+      clickOsc.start(now);
+      clickOsc.stop(now + 0.04);
+    } catch (e) {
+      console.warn('Audio playShock error:', e);
+    }
   }
 
   // Metronome for CPR at 110 cpm (AHA standard 100-120 cpm)

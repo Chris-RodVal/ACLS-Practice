@@ -53,20 +53,27 @@ export function parseClinicalCommand(input) {
 
   // 6. Fármacos ACLS
   if (text.includes('adrenalina') || text.includes('epinefrina')) {
-    return { action: 'GIVE_ADRENALINE', raw };
+    const isInfusion = text.includes('infusion') || text.includes('goteo') || text.includes('bomba') || text.includes('mcg') || text.includes('microgram');
+    let dose = '1mg';
+    if (text.includes('0.5') || text.includes('medio')) dose = '0.5mg';
+    if (text.includes('2 mg') || text.includes('2mg')) dose = '2mg';
+    return { action: 'GIVE_ADRENALINE', isInfusion, dose, rate: isInfusion ? '2-10 mcg/min' : undefined, raw };
   }
   if (text.includes('amiodarona') || text.includes('cordarone')) {
     const is150 = text.includes('150');
-    return { action: 'GIVE_AMIODARONE', isSecondDose: is150, raw };
+    return { action: 'GIVE_AMIODARONE', isSecondDose: is150, dose: is150 ? '150mg' : '300mg', raw };
   }
   if (text.includes('lidocaina')) {
     return { action: 'GIVE_LIDOCAINE', raw };
   }
   if (text.includes('atropina')) {
-    return { action: 'GIVE_ATROPINE', raw };
+    let dose = '1mg';
+    if (text.includes('0.5') || text.includes('medio')) dose = '0.5mg';
+    if (text.includes('3 mg') || text.includes('3mg') || text.includes('max')) dose = '3mg';
+    return { action: 'GIVE_ATROPINE', dose, raw };
   }
   if (text.includes('magnesio') || text.includes('sulfato de magnesio')) {
-    return { action: 'GIVE_MAGNESIUM', raw };
+    return { action: 'GIVE_MAGNESIUM', dose: '2g', raw };
   }
   if (text.includes('calcio') || text.includes('gluconato')) {
     return { action: 'GIVE_CALCIUM', raw };
@@ -75,16 +82,19 @@ export function parseClinicalCommand(input) {
     return { action: 'GIVE_BICARBONATE', raw };
   }
   if (text.includes('adenosina')) {
-    return { action: 'GIVE_ADENOSINE', raw };
+    const is12 = text.includes('12');
+    return { action: 'GIVE_ADENOSINE', dose: is12 ? '12mg' : '6mg', raw };
   }
   if (text.includes('noradrenalina') || text.includes('norepinefrina') || text.includes('dopamina') || text.includes('vasopresor')) {
-    return { action: 'GIVE_VASOPRESSOR', raw };
+    return { action: 'GIVE_VASOPRESSOR', dose: '0.1-0.5 mcg/kg/min', raw };
   }
-  if (text.includes('suero') || text.includes('cristaloide') || text.includes('fisiologico') || text.includes('ringer') || text.includes('volumen') || text.includes('carga') || text.includes('solucion salina') || text.includes('sf')) {
+  if (text.includes('suero') || text.includes('cristaloide') || text.includes('fisiologico') || text.includes('ringer') || text.includes('volumen') || text.includes('carga') || text.includes('solucion salina') || text.includes('sf') || text.includes('hartmann') || text.includes('lactato')) {
+    const isRinger = text.includes('ringer') || text.includes('hartmann') || text.includes('lactato');
+    const fluidType = isRinger ? 'ringer' : 'saline';
     // Extract numerical volume if present
     const match = text.match(/(\d+)\s*(ml|cc)?/);
     const volume = match ? parseInt(match[1], 10) : 500;
-    return { action: 'GIVE_FLUIDS', volume: isNaN(volume) ? 500 : volume, raw };
+    return { action: 'GIVE_FLUIDS', volume: isNaN(volume) ? 500 : volume, fluidType, raw };
   }
 
   // 7. Vía Aérea y Ventilación
@@ -325,25 +335,25 @@ export function evaluateSession(state, currentCase) {
     note: hasReferred ? 'Derivación especializada coordinada exitosamente' : 'Faltó coordinar derivación definitiva'
   });
 
-  // Category 5: Aspectos de Evaluación Presencial en el Box (Evaluación Docente No Automatizable)
-  items.push({ isCategoryHeader: true, title: '5. Aspectos de Evaluación Presencial por el Docente (No evaluable en software)' });
+  // Category 5: Aspectos de Evaluación Presencial en el Box (No aplicables en simulador virtual)
+  items.push({ isCategoryHeader: true, title: '5. Aspectos de Evaluación Presencial por el Docente (NO APLICABLE en simulador virtual)' });
   items.push({
     label: 'Comprueba que el equipo (desfibrilador, cables, parches, carro de paro y monitor) funcione adecuadamente',
     done: false,
     isNotApplicable: true,
-    note: 'Evaluación cualitativa presencial: El docente en el box constata que el alumno inspeccione cables y operatividad del desfibrilador'
+    note: 'No aplicable a la simulación virtual — Evaluado en box presencial por el docente mediante lista de chequeo'
   });
   items.push({
     label: 'Técnica física y ergonomía de las compresiones torácicas (postura vertical a 90°, talón en mitad inferior del esternón)',
     done: false,
     isNotApplicable: true,
-    note: 'Evaluación presencial directa sobre el maniquí por el docente'
+    note: 'No aplicable a la simulación virtual — Evaluado en box presencial directamente sobre el maniquí'
   });
   items.push({
     label: 'Habilidades no técnicas y liderazgo presencial en el box (lenguaje corporal, tono de voz claro y circuito cerrado)',
     done: false,
     isNotApplicable: true,
-    note: 'Evaluación directa por el docente del desenvolvimiento conductual en el escenario simulado'
+    note: 'No aplicable a la simulación virtual — Evaluado en box presencial por el docente'
   });
 
   // Calculate scores (strictly excluding non-evaluable / isNotApplicable items)
