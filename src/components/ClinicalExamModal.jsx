@@ -4,13 +4,14 @@ import { X, Stethoscope, Activity, TestTube, FileText, Search, AlertCircle, Chec
 export default function ClinicalExamModal({
   isOpen,
   onClose,
-  currentCase
+  currentCase,
+  dynamicExam = null
 }) {
   const [activeTab, setActiveTab] = useState('physical'); // 'physical' | 'pocus' | 'labs' | 'history'
 
   if (!isOpen || !currentCase) return null;
 
-  const exam = currentCase.clinicalExam || {
+  const baseExam = currentCase.clinicalExam || {
     physical: {
       pulmonary: 'Murmullo pulmonar presente y simétrico bilateralmente. Sin ruidos agregados.',
       cardiovascular: 'Ruidos cardíacos presentes, sin soplos audibles. Sin ingurgitación yugular.',
@@ -31,9 +32,16 @@ export default function ClinicalExamModal({
     history: {
       witness: 'Acompañante refiere que el cuadro inició súbitamente hoy. Sin vómitos ni diarrea previos.',
       allergies: 'Sin alergias conocidas.',
-      medications: currentCase.patient.history
+      medications: currentCase.patient?.history || ''
     }
   };
+
+  const exam = dynamicExam ? {
+    physical: { ...baseExam.physical, ...(dynamicExam.physical || {}) },
+    pocus: { ...baseExam.pocus, ...(dynamicExam.pocus || {}) },
+    labs: { ...baseExam.labs, ...(dynamicExam.labs || {}) },
+    history: { ...baseExam.history, ...(dynamicExam.history || {}) }
+  } : baseExam;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
@@ -117,7 +125,14 @@ export default function ClinicalExamModal({
           {activeTab === 'physical' && (
             <div className="space-y-3">
               <div className="bg-[#091120] border border-slate-800 p-3.5 rounded-xl space-y-1">
-                <span className="text-cyan-400 font-bold block mb-1">🫁 Auscultación y Examen Pulmonar:</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-cyan-400 font-bold">🫁 Auscultación y Examen Pulmonar:</span>
+                  {exam.physical?.pulmonaryUpdated && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                      ✨ Actualizado post-Descompresión
+                    </span>
+                  )}
+                </div>
                 <p className="text-slate-200 leading-relaxed">{exam.physical?.pulmonary}</p>
               </div>
 
@@ -128,11 +143,25 @@ export default function ClinicalExamModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-[#091120] border border-slate-800 p-3 rounded-xl">
-                  <span className="text-cyan-400 font-bold block mb-1">Piel y Perfusión Periférica:</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-cyan-400 font-bold">Piel y Perfusión:</span>
+                    {exam.physical?.perfusionUpdated && (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded-full font-bold">
+                        ✨ Post-Fluidos
+                      </span>
+                    )}
+                  </div>
                   <p className="text-slate-200">{exam.physical?.perfusion}</p>
                 </div>
                 <div className="bg-[#091120] border border-slate-800 p-3 rounded-xl">
-                  <span className="text-cyan-400 font-bold block mb-1">Temperatura Central:</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-cyan-400 font-bold">Temperatura Central:</span>
+                    {exam.physical?.temperatureUpdated && (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded-full font-bold">
+                        ✨ Recalentado
+                      </span>
+                    )}
+                  </div>
                   <p className="text-slate-200">{exam.physical?.temperature}</p>
                 </div>
               </div>
@@ -143,17 +172,38 @@ export default function ClinicalExamModal({
           {activeTab === 'pocus' && (
             <div className="space-y-3">
               <div className="bg-[#091120] border border-slate-800 p-3.5 rounded-xl space-y-1">
-                <span className="text-cyan-400 font-bold block mb-1">🎯 Ventana Cardíaca Subxifoidea / 4 Cámaras:</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-cyan-400 font-bold">🎯 Ventana Cardíaca Subxifoidea / 4 Cámaras:</span>
+                  {exam.pocus?.cardiacUpdated && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                      ✨ Post-Pericardiocentesis
+                    </span>
+                  )}
+                </div>
                 <p className="text-slate-200 leading-relaxed">{exam.pocus?.cardiac}</p>
               </div>
 
               <div className="bg-[#091120] border border-slate-800 p-3.5 rounded-xl space-y-1">
-                <span className="text-cyan-400 font-bold block mb-1">🫁 Ultrasonido Pulmonar (Lung Sliding):</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-cyan-400 font-bold">🫁 Ultrasonido Pulmonar (Lung Sliding):</span>
+                  {exam.pocus?.lungUpdated && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                      ✨ Deslizamiento Recuperado
+                    </span>
+                  )}
+                </div>
                 <p className="text-slate-200 leading-relaxed">{exam.pocus?.lung}</p>
               </div>
 
               <div className="bg-[#091120] border border-slate-800 p-3.5 rounded-xl space-y-1">
-                <span className="text-cyan-400 font-bold block mb-1">🩸 Vena Cava Inferior (VCI):</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-cyan-400 font-bold">🩸 Vena Cava Inferior (VCI):</span>
+                  {exam.pocus?.vciUpdated && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                      ✨ Normovolemia Restaurada
+                    </span>
+                  )}
+                </div>
                 <p className="text-slate-200 leading-relaxed">{exam.pocus?.vci}</p>
               </div>
             </div>
@@ -163,18 +213,39 @@ export default function ClinicalExamModal({
           {activeTab === 'labs' && (
             <div className="space-y-3">
               <div className="bg-[#091120] border border-slate-800 p-3.5 rounded-xl space-y-1">
-                <span className="text-cyan-400 font-bold block mb-1">🧪 Gases en Sangre Arterial (GSA):</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-cyan-400 font-bold">🧪 Gases en Sangre Arterial (GSA):</span>
+                  {exam.labs?.gsaUpdated && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                      ✨ Control Post-Bicarbonato
+                    </span>
+                  )}
+                </div>
                 <p className="text-emerald-300 font-bold text-[13px]">{exam.labs?.gsa}</p>
               </div>
 
               <div className="bg-[#091120] border border-slate-800 p-3.5 rounded-xl space-y-1">
-                <span className="text-cyan-400 font-bold block mb-1">⚡ Electrolitos Plasmáticos (ELP):</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-cyan-400 font-bold">⚡ Electrolitos Plasmáticos (ELP):</span>
+                  {exam.labs?.electrolytesUpdated && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                      ✨ Control Post-Calcio
+                    </span>
+                  )}
+                </div>
                 <p className="text-amber-300 font-bold text-[13px]">{exam.labs?.electrolytes}</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-[#091120] border border-slate-800 p-3 rounded-xl">
-                  <span className="text-cyan-400 font-bold block mb-1">Glicemia Capilar (HGT):</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-cyan-400 font-bold">Glicemia Capilar (HGT):</span>
+                    {exam.labs?.glucoseUpdated && (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded-full font-bold">
+                        ✨ Normalizada
+                      </span>
+                    )}
+                  </div>
                   <p className="text-slate-200 font-bold">{exam.labs?.glucose}</p>
                 </div>
                 <div className="bg-[#091120] border border-slate-800 p-3 rounded-xl">

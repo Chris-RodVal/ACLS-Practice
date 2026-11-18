@@ -82,6 +82,8 @@ export default function App() {
   const [hasAchievedRce, setHasAchievedRce] = useState(false);
   const [treatedCauses, setTreatedCauses] = useState([]);
   const [studentDiagnosedRhythm, setStudentDiagnosedRhythm] = useState(null);
+  const [hasDeclaredArrestRhythm, setHasDeclaredArrestRhythm] = useState(false);
+  const [dynamicExam, setDynamicExam] = useState(null);
   const [hasReferred, setHasReferred] = useState(false);
   const [referralDestination, setReferralDestination] = useState(null);
   const [isSimulationCompleted, setIsSimulationCompleted] = useState(false);
@@ -272,6 +274,8 @@ export default function App() {
     setOxygenDevice('none');
     setTreatedCauses([]);
     setStudentDiagnosedRhythm(null);
+    setHasDeclaredArrestRhythm(false);
+    setDynamicExam(null);
     setHasReferred(false);
     setReferralDestination(null);
     setIsSimulationCompleted(false);
@@ -292,9 +296,12 @@ export default function App() {
     if (phase === 'arrest' || phase === 'post_rce') return;
 
     soundEngine.playAlarm(true);
-    soundEngine.speak(`Atención. El paciente pierde la consciencia y no respira. Ritmo de paro: ${currentCase.arrestVitals.rhythmName}. Inicien RCP.`, 'system');
+    soundEngine.speak('¡Atención médica! El paciente no responde y entra en apnea. Comprueben pulso carotídeo y evalúen el ritmo en el osciloscopio.', 'system');
     setPhase('arrest');
     setPulsePresent(false);
+    setHasDeclaredArrestRhythm(false);
+    setStudentDiagnosedRhythm(null);
+
     const isAesp = currentCase.arrestVitals.rhythm === 'AESP' || 
                    (typeof currentCase.arrestVitals.rhythm === 'string' && currentCase.arrestVitals.rhythm.includes('AESP')) ||
                    currentCase.arrestType === 'AESP';
@@ -308,11 +315,14 @@ export default function App() {
     setRhythmName(currentCase.arrestVitals.rhythmName);
     setConsciousness('Inconsciente, sin respuesta a estímulos (SIN PULSO)');
     setPatientDialogue('');
-    setAnnouncement(currentCase.degenerationMessage);
+    
+    // Blind arrest rhythm: simulator NEVER reveals rhythm diagnosis to the student beforehand!
+    const genericArrestAlert = '🚨 ¡COLAPSO HEMODINÁMICO SÚBITO! El paciente pierde bruscamente el conocimiento y entra en apnea. Compruebe pulso carotídeo en <10s, evalúe el ritmo en el monitor y declare el ritmo.';
+    setAnnouncement(genericArrestAlert);
     setCprCycleSeconds(0);
 
-    addLog('Alerta Médica', `⚠️ ${currentCase.degenerationMessage}`, 'error');
-    addLog('Monitor', `¡RITMO DE PARO DETECTADO: ${currentCase.arrestVitals.rhythmName}! Comprobar pulso en <10s e iniciar RCP de alta calidad.`, 'error');
+    addLog('Alerta Médica', '🚨 ¡COLAPSO HEMODINÁMICO SÚBITO! El paciente no responde y entra en apnea.', 'error');
+    addLog('Monitor', '🚨 Ausencia de pulso comprobada. Observe el trazado en el osciloscopio y declare el ritmo con el botón "Declarar Ritmo".', 'error');
   };
 
   // Return of Spontaneous Circulation (RCE / ROSC)
@@ -595,6 +605,72 @@ export default function App() {
     addLog('Equipo', `🔍 Tratamiento de causa reversible: ${cause.name} -> "${cause.actionText}" administrado.`, 'success');
     soundEngine.speak(`Causa tratada: ${cause.name}.`, 'system');
 
+    // Dynamic Clinical Exam and Lab updates based on cause:
+    const causeId = (cause.id || '').toLowerCase();
+    if (causeId.includes('neumotorax') || causeId.includes('tension_pneumo')) {
+      setDynamicExam((prev) => {
+        const base = prev || currentCase.clinicalExam || {};
+        return {
+          ...base,
+          physical: {
+            ...(base.physical || {}),
+            pulmonary: 'Murmullo pulmonar simétrico bilateral presente tras descompresión torácica con aguja / toracostomía.',
+            pulmonaryUpdated: true
+          },
+          pocus: {
+            ...(base.pocus || {}),
+            lung: 'Deslizamiento pleural (lung sliding) presente y simétrico bilateral.',
+            lungUpdated: true
+          }
+        };
+      });
+      addLog('Examen Clínico', '🩺 Murmullo pulmonar simétrico bilateral recuperado tras descompresión con aguja en 2° espacio intercostal.', 'success');
+    } else if (causeId.includes('taponamiento') || causeId.includes('tamponade')) {
+      setDynamicExam((prev) => {
+        const base = prev || currentCase.clinicalExam || {};
+        return {
+          ...base,
+          pocus: {
+            ...(base.pocus || {}),
+            cardiac: 'Eje subxifoideo: Resolución completa de derrame pericárdico tras pericardiocentesis evacuadora.',
+            cardiacUpdated: true
+          }
+        };
+      });
+      addLog('POCUS', '🩺 Resolución completa de derrame pericárdico y colapso diastólico post-pericardiocentesis.', 'success');
+    } else if (causeId.includes('hipoglicemia') || causeId.includes('glucose')) {
+      setDynamicExam((prev) => {
+        const base = prev || currentCase.clinicalExam || {};
+        return {
+          ...base,
+          labs: {
+            ...(base.labs || {}),
+            glucose: 'HGT: 142 mg/dL (Normoglicemia alcanzada post-bolo glucosa al 50%).',
+            glucoseUpdated: true
+          }
+        };
+      });
+      addLog('Laboratorio', '🧪 HGT de control: 142 mg/dL. Glucemia normalizada tras administración de dextrosa.', 'success');
+    } else if (causeId.includes('hipotermia') || causeId.includes('hypothermia')) {
+      setDynamicExam((prev) => {
+        const base = prev || currentCase.clinicalExam || {};
+        return {
+          ...base,
+          physical: {
+            ...(base.physical || {}),
+            temperature: '36.2 °C (Recalentamiento activo exitoso con mantas térmicas y fluidos calientes).',
+            temperatureUpdated: true
+          }
+        };
+      });
+      setTemp(36.2);
+      addLog('Control Vital', '🌡️ Temperatura central se eleva a 36.2 °C post-recalentamiento activo.', 'success');
+    } else if (causeId.includes('hidrogeniones') || causeId.includes('acidosis')) {
+      handleAdministerBicarbonate();
+    } else if (causeId.includes('hiperkalemia')) {
+      handleAdministerCalcium();
+    }
+
     if (cause.isCorrectForCase) {
       addLog('ACLS', `🎯 ¡Causa causal del paro (${currentCase.hytCategory}) identificada y tratada correctamente!`, 'success');
     }
@@ -603,13 +679,14 @@ export default function App() {
   // Student Declares Rhythm Diagnosis
   const handleSelectRhythmDiagnosis = (opt) => {
     setStudentDiagnosedRhythm(opt);
+    setHasDeclaredArrestRhythm(true);
     const isExact = opt.id === rhythm || opt.id === currentCase.arrestType || (currentCase.isShockable && opt.isShockable);
 
     if (isExact) {
-      addLog('Estudiante', `🎯 Diagnóstico declarado: ${opt.name} — ¡CORRECTO! Conducta acorde al algoritmo ACLS.`, 'success');
+      addLog('Estudiante', `🎯 Diagnóstico declarado: ${opt.name} — ¡CORRECTO! Reconocimiento certero del ritmo de paro.`, 'success');
       soundEngine.speak(`Diagnóstico correcto: ${opt.name}.`, 'system');
     } else {
-      addLog('Estudiante', `🎯 Diagnóstico declarado: ${opt.name} — ¡INCORRECTO! Observa con atención el osciloscopio en el monitor.`, 'error');
+      addLog('Estudiante', `🎯 Diagnóstico declarado: ${opt.name} — ⚠️ INCORRECTO. El monitor muestra ${rhythmName}. Clasifique adecuadamente si es ritmo desfibrilable o no desfibrilable.`, 'error');
       soundEngine.speak('Diagnóstico incorrecto. Revisa el osciloscopio.', 'system');
     }
   };
@@ -743,6 +820,24 @@ export default function App() {
       hemodynamicNote += ' ¡Causa reversible primaria (Hipovolemia) tratada!';
     }
 
+    // Dynamic Clinical Exam response:
+    setDynamicExam((prev) => {
+      const base = prev || currentCase.clinicalExam || {};
+      return {
+        ...base,
+        physical: {
+          ...(base.physical || {}),
+          perfusion: 'Llenado capilar < 2 segundos. Piel templada, pulsos periféricos palpables.',
+          perfusionUpdated: true
+        },
+        pocus: {
+          ...(base.pocus || {}),
+          vci: 'Vena Cava Inferior de 18 mm con colapso respiratorio < 30% (Normovolemia restaurada post-fluidos).',
+          vciUpdated: true
+        }
+      };
+    });
+
     addLog('Fármacos y Fluidos', `💧 Infundido bolo de ${volume} ml de ${fluidLabel} IV. Total infundido: ${newTotal} ml. ${outcomeLog} ${hemodynamicNote}`, 'success');
     soundEngine.speak(`Bolo de ${volume} mililitros de ${fluidType === 'ringer' ? 'Ringer Lactato' : 'suero fisiológico'} administrado.`, 'system');
   };
@@ -841,6 +936,72 @@ export default function App() {
     } else {
       addLog('Docente Evaluador', '⚠️ Amiodarona indicada principalmente en FV/TV sin pulso refractaria a descargas o taquicardia ventricular con pulso.', 'warning');
     }
+  };
+
+  // 4e. Administrar Bicarbonato de Sodio 1 mEq/kg IV
+  const handleAdministerBicarbonate = (dose = '1 mEq/kg') => {
+    addLog('Fármacos', `🧪 Administrado Bicarbonato de Sodio (${dose} IV en bolo lento) con elevación de la extremidad.`, 'success');
+
+    const isAcidosis = currentCase.hytCategory.toLowerCase().includes('hidrogeniones') ||
+                       currentCase.hytCategory.toLowerCase().includes('acidosis') ||
+                       (currentCase.clinicalExam?.labs?.gsa || '').includes('7.1') ||
+                       (currentCase.clinicalExam?.labs?.gsa || '').includes('7.2');
+
+    if (isAcidosis) {
+      if (!treatedCauses.includes('hidrogeniones')) {
+        setTreatedCauses((prev) => [...prev, 'hidrogeniones']);
+      }
+      setHasIdentifiedHyt(true);
+      addLog('ACLS', '🎯 ¡Causa reversible primaria (Hidrogeniones / Acidosis metabólica severa) tratada exitosamente!', 'success');
+    }
+
+    setDynamicExam((prev) => {
+      const base = prev || currentCase.clinicalExam || {};
+      return {
+        ...base,
+        labs: {
+          ...(base.labs || {}),
+          gsa: 'pH 7.35 | pCO2 36 mmHg | pO2 88 mmHg | HCO3 22 mEq/L | EB -2 mEq/L | Lactato 2.1 mmol/L',
+          gsaUpdated: true
+        }
+      };
+    });
+
+    addLog('Laboratorio', '🧪 [CONTROL GSA POST-BICARBONATO]: pH 7.35 | pCO2 36 | pO2 88 | HCO3 22 mEq/L | EB -2 | Lactato 2.1 mmol/L. ¡Corrección de acidosis metabólica!', 'success');
+    soundEngine.speak('Bicarbonato de sodio administrado. Gasometría de control muestra resolución de la acidosis.', 'system');
+  };
+
+  // 4f. Administrar Gluconato de Calcio
+  const handleAdministerCalcium = (dose = '1 g IV') => {
+    addLog('Fármacos', `🛡️ Administrado Gluconato de Calcio 10% (${dose} IV en 2-5 min) para estabilización de membrana miocárdica.`, 'success');
+
+    const isHyperkalemia = currentCase.hytCategory.toLowerCase().includes('hiperkalemia') ||
+                          currentCase.hytCategory.toLowerCase().includes('potasio') ||
+                          (currentCase.clinicalExam?.labs?.electrolytes || '').includes('K+ 6') ||
+                          (currentCase.clinicalExam?.labs?.electrolytes || '').includes('K+ 7');
+
+    if (isHyperkalemia) {
+      if (!treatedCauses.includes('hiperkalemia')) {
+        setTreatedCauses((prev) => [...prev, 'hiperkalemia']);
+      }
+      setHasIdentifiedHyt(true);
+      addLog('ACLS', '🎯 ¡Causa reversible (Hiperkalemia) tratada!: Membrana miocárdica estabilizada.', 'success');
+    }
+
+    setDynamicExam((prev) => {
+      const base = prev || currentCase.clinicalExam || {};
+      return {
+        ...base,
+        labs: {
+          ...(base.labs || {}),
+          electrolytes: 'K+ 4.6 mEq/L | Na+ 139 mEq/L | Ca2+ iónico 1.22 mmol/L',
+          electrolytesUpdated: true
+        }
+      };
+    });
+
+    addLog('Laboratorio', '🧪 [CONTROL ELECTROLITOS POST-CALCIO]: K+ 4.6 mEq/L | Ca2+ iónico 1.22 mmol/L | Na+ 139 mEq/L. Estabilización de membrana miocárdica exitosa.', 'success');
+    soundEngine.speak('Gluconato de calcio administrado. Membrana miocárdica estabilizada.', 'system');
   };
 
   // 5. Evaluación Inteligente con IA
@@ -989,11 +1150,11 @@ export default function App() {
         break;
 
       case 'GIVE_CALCIUM':
-        addLog('Fármacos', 'Administrado Gluconato de Calcio al 10% (10 ml IV) para estabilización de membrana miocárdica.', 'success');
-        if (currentCase.hytCategory.includes('Hiperkalemia')) {
-          setHasIdentifiedHyt(true);
-          addLog('ACLS', '¡Causa reversible (Hiperkalemia) tratada exitosamente!', 'success');
-        }
+        handleAdministerCalcium();
+        break;
+
+      case 'GIVE_BICARBONATE':
+        handleAdministerBicarbonate();
         break;
 
       case 'GIVE_MAGNESIUM':
@@ -1235,6 +1396,9 @@ export default function App() {
             oxygenDevice={oxygenDevice}
             onChangeOxygenDevice={handleChangeOxygenDevice}
             isAirwaySecured={hasSecuredAirway}
+            phase={phase}
+            hasDeclaredArrestRhythm={hasDeclaredArrestRhythm}
+            studentDiagnosedRhythm={studentDiagnosedRhythm}
           />
         </div>
 
@@ -1358,6 +1522,7 @@ export default function App() {
         isOpen={isClinicalExamOpen}
         onClose={() => setIsClinicalExamOpen(false)}
         currentCase={currentCase}
+        dynamicExam={dynamicExam}
       />
 
       {/* Modal Configuración API Key Gemini para IA */}

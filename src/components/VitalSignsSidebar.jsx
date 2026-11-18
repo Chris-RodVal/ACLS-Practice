@@ -15,7 +15,10 @@ export default function VitalSignsSidebar({
   rhythmName = 'Ritmo Sinusal',
   oxygenDevice = 'none',
   onChangeOxygenDevice = () => {},
-  isAirwaySecured = false
+  isAirwaySecured = false,
+  phase = 'initial',
+  hasDeclaredArrestRhythm = false,
+  studentDiagnosedRhythm = null
 }) {
   const [showO2Menu, setShowO2Menu] = React.useState(false);
 
@@ -61,36 +64,50 @@ export default function VitalSignsSidebar({
           </div>
           <div className="flex items-baseline justify-between mt-1">
             <span className="text-3xl font-black font-mono tracking-tight text-emerald-400">
-              {isCprActive ? 'RCP' : (hr > 0 ? hr : (rhythmName && rhythmName.includes('AESP') ? 48 : '0'))}
+              {isCprActive ? 'RCP' : (!pulsePresent || phase === 'arrest' ? '--' : hr)}
             </span>
             <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-              !pulsePresent && (hr > 0 || (rhythmName && rhythmName.includes('AESP')))
-                ? 'bg-purple-950/90 border-purple-600 text-purple-300 font-bold animate-pulse shadow-sm shadow-purple-900/50'
+              !pulsePresent || phase === 'arrest'
+                ? hasDeclaredArrestRhythm
+                  ? studentDiagnosedRhythm?.isShockable
+                    ? 'bg-amber-950/90 border-amber-500 text-amber-300 font-bold'
+                    : 'bg-purple-950/90 border-purple-500 text-purple-300 font-bold'
+                  : 'bg-rose-950/90 border-rose-600 text-rose-300 font-bold animate-pulse'
                 : isCprActive
                 ? 'bg-emerald-950/80 border-emerald-800 text-emerald-400'
                 : hr > 100
                 ? 'bg-amber-950/80 border-amber-800 text-amber-300'
                 : hr < 50 && hr > 0
                 ? 'bg-sky-950/80 border-sky-800 text-sky-300'
-                : hr === 0
-                ? 'bg-rose-950/80 border-rose-800 text-rose-300'
                 : 'bg-emerald-950/80 border-emerald-800 text-emerald-400'
             }`}>
-              {!pulsePresent && (hr > 0 || (rhythmName && rhythmName.includes('AESP')))
-                ? 'AESP (SIN PULSO)'
+              {!pulsePresent || phase === 'arrest'
+                ? hasDeclaredArrestRhythm
+                  ? studentDiagnosedRhythm?.isShockable ? 'DESFIBRILABLE' : 'NO DESFIBRILABLE'
+                  : 'PARO (SIN PULSO)'
                 : isCprActive
                 ? 'COMPRESIÓN'
                 : hr > 100
                 ? 'TAQUI'
                 : hr < 50 && hr > 0
                 ? 'BRADI'
-                : hr === 0
-                ? 'ASISTOLIA'
                 : 'NORMAL'}
             </span>
           </div>
-          <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5">
-            {rhythmName}
+          <div className="text-[10px] font-mono truncate mt-0.5">
+            {!pulsePresent || phase === 'arrest' ? (
+              hasDeclaredArrestRhythm ? (
+                <span className="text-cyan-300 font-semibold">
+                  Declarado: {studentDiagnosedRhythm?.name || 'Ritmo Confirmado'}
+                </span>
+              ) : (
+                <span className="text-amber-400 font-bold animate-pulse">
+                  ⚡ Ritmo no diagnosticado (Ver Monitor y Declarar)
+                </span>
+              )
+            ) : (
+              <span className="text-slate-400">{rhythmName}</span>
+            )}
           </div>
         </div>
 

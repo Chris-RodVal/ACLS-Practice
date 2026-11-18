@@ -129,37 +129,41 @@ export default function MonitorCanvas({
       // Re-draw grid in the erased slot
       drawGridSlot(ctx, s.sweepX, eraseWidth, height);
 
-      // Heart rate timing
-      // For AESP: uses its OWN independent timing via performance.now() inside getECGValue/getECGV5Value
-      // so the waveform ALWAYS shows organized complexes regardless of hr state.
-      // The beat interval here is only used for QRS beep triggering and other rhythms.
+      // Determine effective electrical rate for oscilloscope animation
       let currentHr = p.isPacingActive ? p.pacerRate : p.hr;
       const isAesp = p.rhythm === 'AESP' || (typeof p.rhythm === 'string' && p.rhythm.includes('AESP'));
-      if (isAesp && (!currentHr || currentHr <= 0)) {
-        currentHr = 48; // Standard intrinsic electrical rate in AESP
+      
+      // When mechanical pulse is lost (cardiac arrest or arrhythmia), the heart still has electrical depolarization:
+      if (!currentHr || currentHr <= 0) {
+        if (['TV_MONOMORFA', 'TVSP'].includes(p.rhythm)) {
+          currentHr = 175;
+        } else if (isAesp) {
+          currentHr = 48;
+        } else if (p.rhythm === 'TORSADES') {
+          currentHr = 220;
+        } else if (p.rhythm === 'TSVP') {
+          currentHr = 180;
+        } else if (p.rhythm === 'FA_RVR') {
+          currentHr = 140;
+        } else if (p.rhythm === 'FLUTTER') {
+          currentHr = 150;
+        }
       }
+
       const beatInterval = currentHr > 0 ? 60 / currentHr : 9999;
       const timeSinceLastBeat = (now - s.lastBeatTime) / 1000;
 
-      // For AESP: also trigger QRS beep using independent timing
-      if (isAesp) {
-        const aespBeatPeriod = 60.0 / 48; // 1.25 seconds
-        const aespPhaseNow = ((now * 0.001) % aespBeatPeriod) / aespBeatPeriod;
-        const aespPhasePrev = (((now - 16.666) * 0.001) % aespBeatPeriod) / aespBeatPeriod;
-        // Detect QRS onset crossing (p ≈ 0.20 is the R wave peak zone)
-        if (aespPhaseNow >= 0.20 && aespPhasePrev < 0.20) {
-          if (p.onQRSBeat) p.onQRSBeat(p.spo2);
-        }
-      } else if (currentHr > 0 && timeSinceLastBeat >= beatInterval) {
+      if (currentHr > 0 && timeSinceLastBeat >= beatInterval) {
         s.lastBeatTime = now;
         s.beatPhase = 0;
+        // Trigger audible QRS beep only if pulse is present or paced (ACLS standard: monitors beep on detected R waves or pulse)
         if (p.pulsePresent || ['TV_MONOMORFA', 'TSVP', 'FA_RVR', 'FLUTTER', 'SINUSAL', 'SINUSAL_BRADI', 'BRADICARDIA_SINUSAL', 'BAV_3', 'BAV_2_MOBITZ_2'].includes(p.rhythm)) {
           if (p.onQRSBeat) p.onQRSBeat(p.spo2);
         }
       }
 
       // Normalized beat progress 0.0 to 1.0 within one RR cycle
-      const cycleProgress = beatInterval > 0 ? Math.min(1.0, timeSinceLastBeat / beatInterval) : 0;
+      const cycleProgress = beatInterval > 0 && beatInterval < 9000 ? Math.min(1.0, timeSinceLastBeat / beatInterval) : 0;
 
       // Compute channel values
       const ecgVal = getECGValue(p.rhythm, cycleProgress, s, p.isCprActive, p.isPacingActive, p.ecgGain);
@@ -375,47 +379,51 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
 
   switch (rhythm) {
     case 'FV':
-    case 'FV_GRUESA':
+    case 'FV_GRUESA': {
       // Fibrilación Ventricular Gruesa (Coarse VF):
-      // Amplitud grande (1.2 - 1.6 mV peak-to-peak), caótica, irregular, anárquica
-      val = (Math.sin(p * 26 + Math.sin(p * 40)) * 0.72 +
-             Math.cos(p * 17 + Math.cos(p * 55)) * 0.48 +
-             Math.sin(p * 11) * 0.28 +
-             (Math.random() - 0.5) * 0.12);
+      // Despolarización caótica continua multionda de alta amplitud (1.0 - 1.5 mV)
+      const t = performance.now() * 0.001 * 4.8;
+      val = Math.sin(t * 3.8 + Math.sin(t * 2.1)) * 0.65 +
+            Math.cos(t * 5.2 + Math.cos(t * 3.7)) * 0.45 +
+            Math.sin(t * 8.1) * 0.25 +
+            (Math.random() - 0.5) * 0.08;
       break;
+    }
 
-    case 'FV_FINA':
+    case 'FV_FINA': {
       // Fibrilación Ventricular Fina (Fine VF < 2mm):
-      // Amplitud muy baja (<0.2 mV), ondas caóticas rápidas de alta frecuencia (380-550 oscilaciones/min)
-      // Se diferencia de la asistolia en que NUNCA es plana: tiene un temblor/ondulación fibrilatoria continua
-      val = (Math.sin(p * 38 + Math.sin(p * 65)) * 0.10 +
-             Math.cos(p * 26 + Math.cos(p * 80)) * 0.08 +
-             Math.sin(p * 48) * 0.05 +
+      // Amplitud muy baja (<0.2 mV), ondas caóticas rápidas continuas de alta frecuencia
+      const t = performance.now() * 0.001 * 6.5;
+      val = (Math.sin(t * 5.5 + Math.sin(t * 3.2)) * 0.12 +
+             Math.cos(t * 8.3) * 0.08 +
              (Math.random() - 0.5) * 0.035);
       break;
+    }
 
-    case 'ASISTOLIA':
+    case 'ASISTOLIA': {
       // Asistolia Verdadera:
       // Ausencia total de actividad eléctrica miocárdica (Línea isoeléctrica plana)
-      // Solo una suave fluctuación de deriva de línea base por respiración pasiva/electrodos y mínimo ruido
       const nowSec = performance.now() * 0.001;
       const slowDrift = Math.sin(nowSec * 0.4) * 0.015;
       val = slowDrift + (Math.random() - 0.5) * 0.012;
       break;
+    }
 
     case 'TV_MONOMORFA':
-    case 'TVSP':
-      // Wide QRS, monomorphic sawtooth-like rapid ventricular tachycardia
-      val = Math.sin(p * Math.PI * 2) * 0.85 +
-            Math.sin(p * Math.PI * 4) * 0.35 +
-            (Math.random() - 0.5) * 0.03;
+    case 'TVSP': {
+      // Taquicardia Ventricular Monomorfa:
+      // Complejos QRS anchos, regulares, monomórficos y sin ondas P a ~175 lpm
+      const phase = p * Math.PI * 2;
+      val = Math.sin(phase) * 0.90 + Math.sin(phase * 2) * 0.25 + (Math.random() - 0.5) * 0.02;
       break;
+    }
 
-    case 'TORSADES':
-      // Torsades de Pointes (twisting of points: spindle amplitude modulation)
+    case 'TORSADES': {
+      // Torsades de Pointes (twisting of points: modulación sinusoidal de husos)
       const envelope = Math.sin(p * Math.PI * 0.8);
       val = (Math.sin(p * Math.PI * 3.5) * 0.8 + Math.sin(p * Math.PI * 7) * 0.3) * (0.4 + 0.6 * Math.abs(envelope));
       break;
+    }
 
     case 'FA_RVR':
       // Atrial Fibrillation with RVR: no P wave, fibrillatory f-waves on baseline, sharp narrow QRS
@@ -477,26 +485,14 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
 
     case 'AESP': {
       // Actividad Eléctrica Sin Pulso (AESP):
-      // ¡CLAVE ACLS! Hay actividad eléctrica ORGANIZADA en el monitor pero SIN pulso palpable.
-      // IMPORTANTE: Usa timing INDEPENDIENTE de hr/beatInterval basado en performance.now()
-      // para garantizar que los complejos SIEMPRE se dibujen, incluso si hr=0 en el state.
-      // Frecuencia eléctrica intrínseca: ~48 lpm (escape idioventricular)
-      const aespRateLpm = 48;
-      const aespPeriodSec = 60.0 / aespRateLpm; // 1.25 seconds per cycle
-      const aespTimeSec = performance.now() * 0.001;
-      const aespCycleProgress = (aespTimeSec % aespPeriodSec) / aespPeriodSec;
-      val = getAespComplex(aespCycleProgress);
+      // Complejos idioventriculares regulares y organizados a ~48 lpm
+      val = getAespComplex(p);
       break;
     }
 
     default: // 'SINUSAL', 'BRADICARDIA_SINUSAL', etc.
       if (typeof rhythm === 'string' && rhythm.includes('AESP')) {
-        // Same independent timing for any AESP variant name
-        const aespRateDef = 48;
-        const aespPeriodDef = 60.0 / aespRateDef;
-        const aespTimeDef = performance.now() * 0.001;
-        const aespCycleDef = (aespTimeDef % aespPeriodDef) / aespPeriodDef;
-        val = getAespComplex(aespCycleDef);
+        val = getAespComplex(p);
       } else {
         val = getStandardPQRST(p, true, true, false, 0.0);
       }
@@ -527,29 +523,28 @@ function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0) {
   const isAesp = rhythm === 'AESP' || (typeof rhythm === 'string' && rhythm.includes('AESP'));
 
   if (rhythm === 'FV' || rhythm === 'FV_GRUESA') {
-    // V5 vector: precordial anterolateral derivación con ángulo vectorial desfasado
-    val = (Math.cos(p * 22 + Math.cos(p * 36)) * 0.65 +
-           Math.sin(p * 32 + Math.sin(p * 50)) * 0.44 +
-           Math.cos(p * 13) * 0.26 +
-           (Math.random() - 0.5) * 0.10);
+    // V5 vector: precordial anterolateral con ángulo vectorial continuo
+    const tV5 = performance.now() * 0.001 * 4.8 + 0.3;
+    val = (Math.cos(tV5 * 3.4 + Math.cos(tV5 * 2.5)) * 0.60 +
+           Math.sin(tV5 * 5.0 + Math.sin(tV5 * 3.9)) * 0.40 +
+           Math.cos(tV5 * 7.5) * 0.22 +
+           (Math.random() - 0.5) * 0.08);
   } else if (rhythm === 'FV_FINA') {
-    // V5 vector para FV fina: muestra la misma oscilación caótica de baja amplitud (< 0.2 mV)
-    val = (Math.cos(p * 34 + Math.cos(p * 58)) * 0.09 +
-           Math.sin(p * 44 + Math.sin(p * 72)) * 0.07 +
+    // V5 vector para FV fina: oscilación caótica de baja amplitud (< 0.2 mV)
+    const tV5 = performance.now() * 0.001 * 6.5 + 0.4;
+    val = (Math.cos(tV5 * 5.2 + Math.cos(tV5 * 3.0)) * 0.11 +
+           Math.sin(tV5 * 7.8) * 0.07 +
            (Math.random() - 0.5) * 0.035);
   } else if (rhythm === 'ASISTOLIA') {
-    // V5 en asistolia confirma línea isoeléctrica plana (protocolo de confirmación bi-derivación)
+    // V5 en asistolia confirma línea isoeléctrica plana
     const nowSec = performance.now() * 0.001;
     const slowDrift = Math.sin(nowSec * 0.4 + 0.8) * 0.015;
     val = slowDrift + (Math.random() - 0.5) * 0.012;
   } else if (isAesp) {
-    // AESP en V5: timing independiente (igual que D2) para garantizar complejos visibles
-    const aespPeriodV5 = 60.0 / 48;
-    const aespTimeV5 = performance.now() * 0.001;
-    const aespCycleV5 = (aespTimeV5 % aespPeriodV5) / aespPeriodV5;
-    val = -getAespComplex(aespCycleV5) * 0.85 + (aespCycleV5 >= 0.44 && aespCycleV5 <= 0.72 ? 0.30 * Math.sin(((aespCycleV5 - 0.44) / 0.28) * Math.PI) : 0);
+    // AESP en V5: complejos organizados idioventriculares
+    val = getAespComplex(p) * 0.85;
   } else if (['TV_MONOMORFA', 'TVSP'].includes(rhythm)) {
-    val = -Math.sin(p * Math.PI * 2) * 0.8 + (Math.random() - 0.5) * 0.03;
+    val = -Math.sin(p * Math.PI * 2) * 0.85 + (Math.random() - 0.5) * 0.02;
   } else {
     // Normal V5 has taller R wave and inverted or distinct T wave
     val = getStandardPQRST(p, true, true, false, 0.0, 1.2);
@@ -580,45 +575,46 @@ function getCprArtifact(timeSec) {
 }
 
 // AESP Complex — Actividad Eléctrica Sin Pulso
-// QRS ORGANIZADO ANCHO (> 0.14s) con MORFOLOGÍA IDIOVENTRICULAR / BCRI
-// Se distingue CLÍNICAMENTE de FV (es organizado) y de Asistolia (hay complejos periódicos a 48 lpm).
-// Morfología: Onda P visible o no, QRS ancho con empastamiento y muesca apexiana,
-// ST descendido y onda T discordante invertida, con línea isoeléctrica nítida entre latidos.
+// Ritmo eléctrico ORGANIZADO pero SIN pulso mecánico palpable.
+// Morfología: Complejo organizado a frecuencia lenta (~45-48 lpm), con onda P, QRS y onda T definidas,
+// y una línea isoeléctrica limpia y nítida entre latidos.
 function getAespComplex(p) {
   let y = 0;
 
-  // Onda P pequeña o disociada (hipoxia miocárdica en paro)
-  if (p >= 0.04 && p <= 0.12) {
-    y += Math.sin(((p - 0.04) / 0.08) * Math.PI) * 0.14;
+  // 1. Onda P pequeña/disociada (0.06 - 0.14)
+  if (p >= 0.06 && p < 0.14) {
+    const pPhase = (p - 0.06) / 0.08;
+    y += Math.sin(pPhase * Math.PI) * 0.14;
   }
 
-  // Segmento PR isoeléctrico
-  // QRS ANCHO ORGANIZADO (escape idioventricular / BCRI: > 140 ms)
-  // 1. Rama ascendente empastada (delta-like)
-  if (p >= 0.18 && p < 0.24) {
-    y += ((p - 0.18) / 0.06) * 0.45;
-  }
-  // 2. Cúspide ancha con melladura M clásica de bloqueo de rama
-  if (p >= 0.24 && p < 0.35) {
-    const rPhase = (p - 0.24) / 0.11;
-    y += 0.45 + Math.sin(rPhase * Math.PI) * 0.85;
-    // Muesca de empastamiento
-    if (p >= 0.28 && p < 0.305) y -= 0.15;
-  }
-  // 3. Rama descendente lenta post-R
-  if (p >= 0.35 && p < 0.44) {
-    const sPhase = (p - 0.35) / 0.09;
-    y += 0.45 * (1.0 - sPhase) - Math.sin(sPhase * Math.PI) * 0.25;
+  // 2. Intervalo PR isoeléctrico (0.14 - 0.20)
+
+  // 3. Onda Q pequeña (0.20 - 0.22)
+  if (p >= 0.20 && p < 0.22) {
+    const qPhase = (p - 0.20) / 0.02;
+    y -= Math.sin(qPhase * Math.PI) * 0.10;
   }
 
-  // 4. Segmento ST deprimido y onda T asimétrica discordante invertida
-  if (p >= 0.44 && p <= 0.72) {
-    const tPhase = (p - 0.44) / 0.28;
-    y -= Math.sin(tPhase * Math.PI) * 0.38 + (1.0 - tPhase) * 0.14;
+  // 4. Complejo QRS organizado (0.22 - 0.30) - Curva continua suave y definida
+  if (p >= 0.22 && p < 0.30) {
+    const rPhase = (p - 0.22) / 0.08;
+    y += Math.sin(rPhase * Math.PI) * 1.15;
   }
 
-  // 5. Línea de base isoeléctrica entre latidos con micro-ruido biológico
-  y += (Math.random() - 0.5) * 0.015;
+  // 5. Onda S (0.30 - 0.34)
+  if (p >= 0.30 && p < 0.34) {
+    const sPhase = (p - 0.30) / 0.04;
+    y -= Math.sin(sPhase * Math.PI) * 0.28;
+  }
+
+  // 6. Segmento ST y Onda T discordante suave (0.38 - 0.52)
+  if (p >= 0.38 && p <= 0.52) {
+    const tPhase = (p - 0.38) / 0.14;
+    y += Math.sin(tPhase * Math.PI) * 0.26;
+  }
+
+  // 7. Línea isoeléctrica limpia entre latidos (0.52 - 1.0) con micro-ruido biológico mínimo
+  y += (Math.random() - 0.5) * 0.012;
   return y;
 }
 
