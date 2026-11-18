@@ -49,12 +49,12 @@ export default function VitalSignsSidebar({
   const currentO2 = O2_DEVICES.find(d => d.id === oxygenDevice) || O2_DEVICES[0];
 
   return (
-    <div className="w-64 sm:w-72 bg-[#0A101D] border-l border-slate-800 flex flex-col justify-between p-2.5 select-none overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+    <div className="w-64 sm:w-72 bg-[#0A101D] border-l border-slate-800 flex flex-col gap-1.5 p-2 select-none overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
       {/* Parameters list */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1.5">
 
         {/* 1. Heart Rate (HR / FC) */}
-        <div className="bg-[#0C1524] border border-emerald-900/50 rounded-lg p-2 shadow-sm">
+        <div className="bg-[#0C1524] border border-emerald-900/50 rounded-lg p-1.5 shadow-sm">
           <div className="flex items-center justify-between text-xs text-emerald-400 font-mono font-semibold">
             <span className="flex items-center gap-1.5">
               <Heart className={`w-3.5 h-3.5 text-emerald-400 ${hr > 0 && pulsePresent && !isCprActive ? 'animate-ping' : ''}`} />
@@ -62,11 +62,11 @@ export default function VitalSignsSidebar({
             </span>
             <span className="text-[10px] text-emerald-500/70">lpm</span>
           </div>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-3xl font-black font-mono tracking-tight text-emerald-400">
+          <div className="flex items-baseline justify-between mt-0.5">
+            <span className="text-2xl font-black font-mono tracking-tight text-emerald-400">
               {isCprActive ? 'RCP' : (!pulsePresent || phase === 'arrest' ? '--' : hr)}
             </span>
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
               !pulsePresent || phase === 'arrest'
                 ? hasDeclaredArrestRhythm
                   ? studentDiagnosedRhythm?.isShockable
@@ -112,7 +112,7 @@ export default function VitalSignsSidebar({
         </div>
 
         {/* 2. SpO2 (Saturación de Oxígeno) */}
-        <div className="bg-[#081726] border border-cyan-900/50 rounded-lg p-2 shadow-sm relative">
+        <div className="bg-[#081726] border border-cyan-900/50 rounded-lg p-1.5 shadow-sm relative">
           <div className="flex items-center justify-between text-xs text-cyan-400 font-mono font-semibold">
             <span className="flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 text-cyan-400" />
@@ -120,11 +120,11 @@ export default function VitalSignsSidebar({
             </span>
             <span className="text-[10px] text-cyan-500/70">PLET</span>
           </div>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-3xl font-black font-mono tracking-tight text-cyan-400">
+          <div className="flex items-baseline justify-between mt-0.5">
+            <span className="text-2xl font-black font-mono tracking-tight text-cyan-400">
               {isCprActive || !pulsePresent || spo2 <= 0 ? '--' : spo2}
             </span>
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
               isCprActive
                 ? 'bg-amber-950/80 border-amber-800 text-amber-300'
                 : !pulsePresent
@@ -138,12 +138,12 @@ export default function VitalSignsSidebar({
           </div>
 
           {/* Control y Selector de Dispositivo de Oxígeno */}
-          <div className="mt-1.5 pt-1.5 border-t border-cyan-950 flex flex-col gap-1 text-[11px] font-mono">
+          <div className="mt-1 pt-1 border-t border-cyan-950 flex flex-col gap-0.5 text-[11px] font-mono">
             <div className="flex items-center justify-between">
               <span className="text-slate-400 text-[10px]">Dispositivo O2:</span>
               <button
                 onClick={() => setShowO2Menu(!showO2Menu)}
-                className={`px-2 py-0.5 rounded font-bold transition flex items-center gap-1 text-[10px] border ${
+                className={`px-1.5 py-0.5 rounded font-bold transition flex items-center gap-1 text-[10px] border ${
                   oxygenDevice !== 'none'
                     ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 hover:bg-cyan-500/30'
                     : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
@@ -189,7 +189,7 @@ export default function VitalSignsSidebar({
         </div>
 
         {/* 3. NIBP / Presión Arterial */}
-        <div className="bg-[#181120] border border-rose-950/50 rounded-lg p-2 shadow-sm">
+        <div className="bg-[#181120] border border-rose-950/50 rounded-lg p-1.5 shadow-sm">
           <div className="flex items-center justify-between text-xs text-rose-300 font-mono font-semibold">
             <span className="flex items-center gap-1.5">
               <Gauge className="w-3.5 h-3.5 text-rose-400" />
@@ -209,7 +209,7 @@ export default function VitalSignsSidebar({
               {isNibpMeasuring ? 'INFLANDO...' : 'TOMA PA'}
             </button>
           </div>
-          <div className="flex items-baseline justify-between mt-1">
+          <div className="flex items-baseline justify-between mt-0.5">
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-black font-mono tracking-tight text-rose-300">
                 {isNibpMeasuring ? '---/---' : pulsePresent ? bp : '0/0'}
@@ -223,7 +223,7 @@ export default function VitalSignsSidebar({
         </div>
 
         {/* 4. EtCO2 / Capnografía (Solo se muestra valor cuantitativo si el paciente está intubado) */}
-        <div className="bg-[#1C1808] border border-amber-900/50 rounded-lg p-2 shadow-sm">
+        <div className="bg-[#1C1808] border border-amber-900/50 rounded-lg p-1.5 shadow-sm">
           <div className="flex items-center justify-between text-xs text-amber-400 font-mono font-semibold">
             <span className="flex items-center gap-1.5">
               <Wind className="w-3.5 h-3.5 text-amber-400" />
@@ -231,7 +231,7 @@ export default function VitalSignsSidebar({
             </span>
             <span className="text-[10px] text-amber-500/70">{isAirwaySecured ? 'mmHg' : 'Desconectado'}</span>
           </div>
-          <div className="flex items-baseline justify-between mt-1">
+          <div className="flex items-baseline justify-between mt-0.5">
             <span className="text-2xl font-black font-mono tracking-tight text-amber-400">
               {isAirwaySecured && etco2 > 0 ? etco2 : '--'}
             </span>
@@ -244,23 +244,23 @@ export default function VitalSignsSidebar({
         </div>
 
         {/* 5. FR & Temp */}
-        <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-          <div className="bg-[#0C121E] border border-slate-800 rounded p-2">
+        <div className="grid grid-cols-2 gap-1.5 text-xs font-mono">
+          <div className="bg-[#0C121E] border border-slate-800 rounded p-1.5">
             <div className="text-slate-400 text-[10px]">FR (rpm)</div>
-            <div className="text-lg font-bold text-slate-200 mt-0.5">{pulsePresent ? rr : 0}</div>
+            <div className="text-base font-bold text-slate-200 mt-0.5">{pulsePresent ? rr : 0}</div>
           </div>
-          <div className="bg-[#0C121E] border border-slate-800 rounded p-2">
+          <div className="bg-[#0C121E] border border-slate-800 rounded p-1.5">
             <div className="text-slate-400 text-[10px] flex items-center gap-0.5">
               <Thermometer className="w-2.5 h-2.5" /> Temp °C
             </div>
-            <div className="text-lg font-bold text-slate-200 mt-0.5">{temp.toFixed(1)}°</div>
+            <div className="text-base font-bold text-slate-200 mt-0.5">{temp.toFixed(1)}°</div>
           </div>
         </div>
 
       </div>
 
       {/* Target Metas ACLS */}
-      <div className="text-[9px] font-mono text-slate-500 border-t border-slate-800 pt-2 flex flex-col gap-0.5">
+      <div className="text-[9px] font-mono text-slate-500 border-t border-slate-800 pt-1.5 flex flex-col gap-0.5 pb-2">
         <div>PAM Meta: &gt; 65 mmHg</div>
         <div>SaO2 Meta: 92 - 98% (Normoxia)</div>
         <div>EtCO2 Meta: 35 - 40 mmHg</div>

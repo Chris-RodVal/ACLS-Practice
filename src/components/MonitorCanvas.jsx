@@ -201,7 +201,8 @@ export default function MonitorCanvas({
       const capnoVal = getCapnoValue(p.isAirwaySecured, p.isCprActive, p.etco2, cycleProgress, now);
 
       // Draw Channel 1: Lead II (D2) (Green)
-      const y1 = channelHeight * 0.5 - ecgVal * (channelHeight * 0.38);
+      const y1Raw = channelHeight * 0.5 - ecgVal * (channelHeight * 0.38);
+      const y1 = Math.max(channelHeight * 0.04, Math.min(channelHeight * 0.96, y1Raw));
       if (oldX <= s.sweepX) {
         drawLineSegment(ctx, oldX, s.prevY[0] || y1, s.sweepX, y1, '#22C55E', 2.0);
       }
@@ -218,21 +219,24 @@ export default function MonitorCanvas({
       }
 
       // Draw Channel 2: Lead V5 (D5) (Cyan/Emerald)
-      const y2 = channelHeight * 1.5 - ecgValV5 * (channelHeight * 0.36);
+      const y2Raw = channelHeight * 1.5 - ecgValV5 * (channelHeight * 0.36);
+      const y2 = Math.max(channelHeight * 1.04, Math.min(channelHeight * 1.96, y2Raw));
       if (oldX <= s.sweepX) {
         drawLineSegment(ctx, oldX, s.prevY[1] || y2, s.sweepX, y2, '#14B8A6', 1.8);
       }
       s.prevY[1] = y2;
 
       // Draw Channel 3: Plethysmography (Cyan Blue)
-      const y3 = channelHeight * 2.5 - plethVal * (channelHeight * 0.38);
+      const y3Raw = channelHeight * 2.5 - plethVal * (channelHeight * 0.38);
+      const y3 = Math.max(channelHeight * 2.04, Math.min(channelHeight * 2.96, y3Raw));
       if (oldX <= s.sweepX) {
         drawLineSegment(ctx, oldX, s.prevY[2] || y3, s.sweepX, y3, '#06B6D4', 2.2);
       }
       s.prevY[2] = y3;
 
       // Draw Channel 4: Capnography (Yellow / Amber)
-      const y4 = channelHeight * 3.5 - capnoVal * (channelHeight * 0.40);
+      const y4Raw = channelHeight * 3.5 - capnoVal * (channelHeight * 0.40);
+      const y4 = Math.max(channelHeight * 3.04, Math.min(channelHeight * 3.96, y4Raw));
       if (oldX <= s.sweepX) {
         drawLineSegment(ctx, oldX, s.prevY[3] || y4, s.sweepX, y4, '#EAB308', 2.0);
       }
@@ -441,9 +445,8 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0, t
     case 'TV_MONOMORFA':
     case 'TVSP': {
       // Taquicardia Ventricular Monomorfa:
-      // Complejos QRS anchos, regulares, monomórficos y sin ondas P a ~175 lpm
-      const phase = p * Math.PI * 2;
-      val = Math.sin(phase) * 0.90 + Math.sin(phase * 2) * 0.25 + (Math.random() - 0.5) * 0.02;
+      // Complejos QRS anchos, regulares, monomórficos con signo de Josephson y T discordante a ~175 lpm
+      val = getMonomorphicVtComplex(p, false);
       break;
     }
 
@@ -529,8 +532,8 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0, t
       break;
   }
 
-  // Apply monitor sensitivity gain
-  val = val * ecgGain;
+  // Apply monitor sensitivity gain with soft-knee limiter (evita achatamiento o corte plano)
+  val = Math.tanh((val * ecgGain) / 1.15) * 1.15;
 
   // Superimpose CPR compressions artifact if CPR is actively happening
   // Preserves 75% of the underlying cardiac rhythm so QRS complexes peek through compressions!
@@ -577,14 +580,14 @@ function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0, timeSinceLastBe
     // V5 vector para FA: complexes QRS estrechos con R prominente y f-waves desfasadas
     val = getAfibComplex(timeSinceLastBeat, currentBeatDuration, performance.now() * 0.001 + 0.25, 1.35);
   } else if (['TV_MONOMORFA', 'TVSP'].includes(rhythm)) {
-    val = -Math.sin(p * Math.PI * 2) * 0.85 + (Math.random() - 0.5) * 0.02;
+    val = getMonomorphicVtComplex(p, true);
   } else {
     // Normal V5 has taller R wave and inverted or distinct T wave
     val = getStandardPQRST(p, true, true, false, 0.0, 1.2);
   }
 
-  // Apply monitor sensitivity gain
-  val = val * ecgGain;
+  // Apply monitor sensitivity gain with soft-knee limiter (evita achatamiento o corte plano)
+  val = Math.tanh((val * ecgGain) / 1.15) * 1.15;
 
   if (isCprActive) {
     val = val * 0.75 - getCprArtifact(performance.now() * 0.001 + 0.05) * 0.55;
@@ -605,6 +608,44 @@ function getCprArtifact(timeSec) {
   }
   const jitter = (Math.random() - 0.5) * 0.05 + Math.sin(timeSec * 50) * 0.03;
   return w + jitter;
+}
+
+// Taquicardia Ventricular Monomorfa (TV / TVSP):
+// Criterios diagnósticos Brugada / Vereckei:
+// - QRS ancho (> 140 - 160 ms)
+// - Ascenso ventricular lento (R-wave peak time prolongado > 50 ms)
+// - Muesca en la rama descendente (signo de Josephson)
+// - Segmento ST y onda T discordantemente opuesta al complejo QRS principal
+// - Ritmo regular, monomórfico y sin ondas P
+function getMonomorphicVtComplex(p, isV5 = false) {
+  let y = 0;
+  if (!isV5) {
+    // Derivación D2: Complejo predominantemente positivo con QRS ancho y onda T discordante
+    if (p < 0.48) {
+      // QRS ancho (0.0 a 0.48):
+      const qrsPhase = p / 0.48;
+      // Rama ascendente ancha y slurred con muesca sutil de Josephson cerca del ápex
+      const baseR = Math.sin(qrsPhase * Math.PI) * 0.72;
+      const notch = Math.exp(-Math.pow((qrsPhase - 0.45) / 0.08, 2)) * 0.09;
+      const sDip = qrsPhase > 0.75 ? -Math.sin(((qrsPhase - 0.75) / 0.25) * Math.PI) * 0.20 : 0;
+      y = baseR - notch + sDip;
+    } else {
+      // Onda T discordante amplia e invertida (0.48 a 0.95)
+      const tPhase = (p - 0.48) / 0.47;
+      y = -Math.sin(tPhase * Math.PI) * 0.26;
+    }
+  } else {
+    // Derivación V5: Complejo predominantemente negativo (patrón QS profundo con T positiva discordante)
+    if (p < 0.48) {
+      const qrsPhase = p / 0.48;
+      y = -Math.sin(qrsPhase * Math.PI) * 0.68 + (qrsPhase > 0.35 ? 0.06 : 0);
+    } else {
+      const tPhase = (p - 0.48) / 0.47;
+      y = Math.sin(tPhase * Math.PI) * 0.24;
+    }
+  }
+  y += (Math.random() - 0.5) * 0.015;
+  return y;
 }
 
 // AESP Complex — Actividad Eléctrica Sin Pulso

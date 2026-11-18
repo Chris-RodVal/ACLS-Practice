@@ -8,6 +8,7 @@ class ClinicalSoundEngine {
     this.voiceMuted = false;
     this.chargeOsc = null;
     this.chargeGain = null;
+    this.readyInterval = null;
     this.metronomeInterval = null;
   }
 
@@ -27,6 +28,7 @@ class ClinicalSoundEngine {
     this.muted = !this.muted;
     if (this.muted) {
       this.stopCharge();
+      this.stopReadyTone();
       this.stopMetronome();
     }
     return this.muted;
@@ -92,13 +94,14 @@ class ClinicalSoundEngine {
     } catch (e) {}
   }
 
-  // Defibrillator Capacitor Charging Whine
+  // Defibrillator Capacitor Charging Whine (Potente sonido ascendente realista de carga)
   startCharge(durationSec = 2.5) {
     if (this.muted) return;
     this.init();
     if (!this.ctx) return;
 
     this.stopCharge();
+    this.stopReadyTone();
 
     try {
       const now = this.ctx.currentTime;
@@ -106,20 +109,60 @@ class ClinicalSoundEngine {
       this.chargeGain = this.ctx.createGain();
 
       this.chargeOsc.type = 'sawtooth';
-      this.chargeOsc.frequency.setValueAtTime(240, now);
-      this.chargeOsc.frequency.exponentialRampToValueAtTime(1100, now + durationSec);
+      this.chargeOsc.frequency.setValueAtTime(220, now);
+      this.chargeOsc.frequency.exponentialRampToValueAtTime(1150, now + durationSec);
 
-      this.chargeGain.gain.setValueAtTime(0.04, now);
-      this.chargeGain.gain.linearRampToValueAtTime(0.14, now + durationSec);
+      // Robust volume for clear audibility
+      this.chargeGain.gain.setValueAtTime(0.12, now);
+      this.chargeGain.gain.linearRampToValueAtTime(0.32, now + durationSec);
 
       this.chargeOsc.connect(this.chargeGain);
       this.chargeGain.connect(this.ctx.destination);
 
       this.chargeOsc.start(now);
+      this.chargeOsc.stop(now + durationSec);
     } catch (e) {}
   }
 
+  // Tono de Alerta Defibrilador Armado / Listo ("BEEP-BEEP-BEEP" a 1050 Hz continuo mientras está cargado)
+  startReadyTone() {
+    this.stopReadyTone();
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const beep = () => {
+      if (this.muted || !this.ctx) return;
+      try {
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1050, now);
+
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.085);
+      } catch (e) {}
+    };
+
+    beep();
+    this.readyInterval = setInterval(beep, 180);
+  }
+
+  stopReadyTone() {
+    if (this.readyInterval) {
+      clearInterval(this.readyInterval);
+      this.readyInterval = null;
+    }
+  }
+
   stopCharge() {
+    this.stopReadyTone();
     if (this.chargeOsc) {
       try {
         this.chargeOsc.stop();
@@ -138,6 +181,7 @@ class ClinicalSoundEngine {
   // Defibrillator Discharge Shock Thump ("¡PUM! ⚡" - Impacto visceral de descarga eléctrica de alto voltaje)
   playShock() {
     this.stopCharge();
+    this.stopReadyTone();
     if (this.muted) return;
     this.init();
     if (!this.ctx) return;
@@ -149,53 +193,57 @@ class ClinicalSoundEngine {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(140, now);
-      osc.frequency.exponentialRampToValueAtTime(32, now + 0.38);
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.exponentialRampToValueAtTime(26, now + 0.42);
 
-      gain.gain.setValueAtTime(0.95, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      gain.gain.setValueAtTime(1.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.50);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.48);
+      osc.stop(now + 0.52);
 
       // 2. High-Voltage Electric Arc Transient ("KZZT")
-      const bufferSize = Math.floor(this.ctx.sampleRate * 0.12);
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.16);
       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.022));
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.025));
       }
       const noise = this.ctx.createBufferSource();
       noise.buffer = buffer;
 
       const noiseFilter = this.ctx.createBiquadFilter();
       noiseFilter.type = 'bandpass';
-      noiseFilter.frequency.setValueAtTime(1500, now);
+      noiseFilter.frequency.setValueAtTime(1600, now);
       noiseFilter.Q.setValueAtTime(1.5, now);
 
       const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.7, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      noiseGain.gain.setValueAtTime(0.85, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
 
       noise.connect(noiseFilter);
       noiseFilter.connect(noiseGain);
       noiseGain.connect(this.ctx.destination);
       noise.start(now);
+      noise.stop(now + 0.18);
 
       // 3. Mechanical Capacitor Relay Clack (t=0)
       const clickOsc = this.ctx.createOscillator();
       const clickGain = this.ctx.createGain();
       clickOsc.type = 'triangle';
-      clickOsc.frequency.setValueAtTime(700, now);
-      clickOsc.frequency.exponentialRampToValueAtTime(120, now + 0.035);
-      clickGain.gain.setValueAtTime(0.6, now);
-      clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+      clickOsc.frequency.setValueAtTime(800, now);
+      clickOsc.frequency.exponentialRampToValueAtTime(100, now + 0.04);
+      clickGain.gain.setValueAtTime(0.75, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
       clickOsc.connect(clickGain);
       clickGain.connect(this.ctx.destination);
       clickOsc.start(now);
-      clickOsc.stop(now + 0.04);
+      clickOsc.stop(now + 0.045);
+
+      // Spoken confirmation
+      this.speak('Descarga administrada. Reanudar compresiones inmediatamente.', 'system');
     } catch (e) {
       console.warn('Audio playShock error:', e);
     }

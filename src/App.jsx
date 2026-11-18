@@ -225,6 +225,8 @@ export default function App() {
 
   const resetSimulationState = (caseObj = currentCase) => {
     soundEngine.stopCharge();
+    soundEngine.stopReadyTone();
+    soundEngine.stopMetronome();
     setPhase('initial');
     setHr(caseObj.initialVitals.hr);
     setSpo2(caseObj.initialVitals.spo2);
@@ -411,7 +413,9 @@ export default function App() {
     setTimeout(() => {
       setIsCharging(false);
       setIsCharged(true);
+      soundEngine.startReadyTone();
       addLog('Desfibrilador', `¡CONDENSADOR CARGADO A ${joules} JOULES! Listo para descargar. Despejar al equipo.`, 'warning');
+      soundEngine.speak(`Condensador cargado a ${joules} Joules. Despejar al paciente.`, 'system');
     }, 2500);
   };
 
@@ -454,10 +458,12 @@ export default function App() {
         return;
       }
 
-      // Correct Shock on FV / pVT
+      // Correct Shock on FV / pVT: Immediate CPR resumption & 2-min cycle timer begins at 0:00
       addLog('Equipo', `¡Descarga de ${joules}J administrada! Despeje confirmado ("Fuera todos").`, 'success');
-      addLog('Líder ACLS', '¡REANUDAR RCP DE INMEDIATO! No detenerse a comprobar pulso ni ritmo tras el choque.', 'warning');
+      setCprCycleSeconds(0);
       setIsCprActive(true);
+      soundEngine.startMetronome();
+      addLog('Líder ACLS', '⏱️ ¡REANUDAR RCP DE INMEDIATO! El ciclo de 2 minutos se reinicia a partir de esta descarga.', 'warning');
 
       // Check if conditions for RCE are met (e.g. after shocks + CPR + drugs)
       if (shockCount >= 1 && (adrenalineCount >= 1 || amiodaroneCount >= 1)) {
@@ -1120,7 +1126,11 @@ export default function App() {
 
       case 'DEFIB_SHOCK':
         setIsSync(false);
-        handleStartCharge();
+        if (isCharged) {
+          handleDeliverShock();
+        } else {
+          handleStartCharge();
+        }
         break;
 
       case 'GIVE_ADRENALINE':
@@ -1361,7 +1371,7 @@ export default function App() {
       <main className="flex-1 p-3 flex flex-col gap-3">
         
         {/* Oscilloscope Monitor & Vital Signs Sidebar (SimCore Layout) */}
-        <div className="bg-[#05080F] border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col md:flex-row h-[500px] min-h-[480px]">
+        <div className="bg-[#05080F] border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[520px] md:h-[550px]">
           {/* Left: Dynamic 4-channel Canvas Oscilloscope */}
           <div className="flex-1 h-full min-h-[300px]">
             <MonitorCanvas
