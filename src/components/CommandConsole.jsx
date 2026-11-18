@@ -72,7 +72,22 @@ export default function CommandConsole({
   };
 
   return (
-    <div className="bg-[#0A101D] border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow-xl">
+    <div className="bg-[#0A101D] border border-slate-800 rounded-xl flex flex-col shadow-xl relative">
+      
+      {/* Click-outside backdrop when any dropdown is open */}
+      {(showFluidPicker || showO2Picker || showAdrenalineMenu || showAtropineMenu || showAmiodaroneMenu || showOtherDrugsMenu) && (
+        <div
+          className="fixed inset-0 z-40 bg-black/20"
+          onClick={() => {
+            setShowFluidPicker(false);
+            setShowO2Picker(false);
+            setShowAdrenalineMenu(false);
+            setShowAtropineMenu(false);
+            setShowAmiodaroneMenu(false);
+            setShowOtherDrugsMenu(false);
+          }}
+        />
+      )}
       
       {/* Intubation in progress countdown banner */}
       {isIntubating && (
@@ -414,10 +429,16 @@ export default function CommandConsole({
 
             {/* Menú desplegable de Fluidos */}
             {showFluidPicker && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-[#0F172A] border border-sky-600/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1.5 text-xs font-mono">
-                <div className="text-[10px] text-sky-400 font-bold px-1 py-0.5 border-b border-slate-700 flex items-center justify-between">
-                  <span>TIPO DE CRISTALOIDE:</span>
-                  <span className="text-[9px] text-slate-400">ATLS / ACLS</span>
+              <div className="absolute bottom-full left-0 mb-1.5 w-60 bg-[#0F172A] border border-sky-500/80 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-1.5 text-xs font-mono max-h-72 overflow-y-auto">
+                <div className="text-[10px] text-sky-400 font-bold pb-1 border-b border-slate-700 flex items-center justify-between">
+                  <span>TIPO DE CRISTALOIDE (ATLS):</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowFluidPicker(false)}
+                    className="text-slate-400 hover:text-white px-1 font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
                 
                 {/* Selector Ringer vs SF */}
@@ -499,9 +520,16 @@ export default function CommandConsole({
 
             {/* Menú de dispositivos de oxígeno */}
             {showO2Picker && (
-              <div className="absolute top-full left-0 mt-1 w-52 bg-[#0F172A] border border-cyan-500/60 rounded-xl shadow-2xl p-1.5 z-50 flex flex-col gap-1 text-xs font-mono">
-                <div className="text-[10px] text-cyan-400 font-bold px-1 py-0.5 border-b border-slate-700">
-                  Seleccionar Oxigenoterapia:
+              <div className="absolute bottom-full left-0 mb-1.5 w-56 bg-[#0F172A] border border-cyan-500/80 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono max-h-72 overflow-y-auto">
+                <div className="text-[10px] text-cyan-400 font-bold pb-1 border-b border-slate-700 flex items-center justify-between">
+                  <span>OXIGENOTERAPIA ACLS:</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowO2Picker(false)}
+                    className="text-slate-400 hover:text-white px-1 font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
                 {[
                   { id: 'none', label: 'Aire Ambiental', sub: 'FiO2 21%' },
@@ -549,9 +577,16 @@ export default function CommandConsole({
 
             {/* Menú de Dosis de Adrenalina */}
             {showAdrenalineMenu && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-[#0F172A] border border-amber-500/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
-                <div className="text-[10px] text-amber-400 font-bold px-1 py-0.5 border-b border-slate-700">
-                  DOSIS ADRENALINA ACLS:
+              <div className="absolute bottom-full left-0 mb-1.5 w-64 bg-[#0F172A] border border-amber-500/80 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-1 text-xs font-mono max-h-72 overflow-y-auto">
+                <div className="text-[10px] text-amber-400 font-bold pb-1 border-b border-slate-700 flex items-center justify-between">
+                  <span>DOSIS ADRENALINA ACLS:</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdrenalineMenu(false)}
+                    className="text-slate-400 hover:text-white px-1 font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
                 <button
                   onClick={() => {
@@ -626,9 +661,16 @@ export default function CommandConsole({
 
             {/* Menú de Dosis de Atropina */}
             {showAtropineMenu && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-[#0F172A] border border-teal-500/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
-                <div className="text-[10px] text-teal-400 font-bold px-1 py-0.5 border-b border-slate-700">
-                  DOSIS ATROPINA (AHA 2020):
+              <div className="absolute bottom-full left-0 mb-1.5 w-64 bg-[#0F172A] border border-teal-500/80 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-1 text-xs font-mono max-h-72 overflow-y-auto">
+                <div className="text-[10px] text-teal-400 font-bold pb-1 border-b border-slate-700 flex items-center justify-between">
+                  <span>DOSIS ATROPINA (AHA 2020):</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAtropineMenu(false)}
+                    className="text-slate-400 hover:text-white px-1 font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
                 <button
                   onClick={() => {
@@ -688,9 +730,16 @@ export default function CommandConsole({
 
             {/* Menú de Dosis de Amiodarona */}
             {showAmiodaroneMenu && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-[#0F172A] border border-purple-500/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
-                <div className="text-[10px] text-purple-400 font-bold px-1 py-0.5 border-b border-slate-700">
-                  DOSIS AMIODARONA ACLS:
+              <div className="absolute bottom-full left-0 sm:left-auto sm:right-0 mb-1.5 w-64 bg-[#0F172A] border border-purple-500/80 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-1 text-xs font-mono max-h-72 overflow-y-auto">
+                <div className="text-[10px] text-purple-400 font-bold pb-1 border-b border-slate-700 flex items-center justify-between">
+                  <span>DOSIS AMIODARONA ACLS:</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAmiodaroneMenu(false)}
+                    className="text-slate-400 hover:text-white px-1 font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
                 <button
                   onClick={() => {
@@ -753,9 +802,16 @@ export default function CommandConsole({
 
             {/* Menú de Otros Fármacos */}
             {showOtherDrugsMenu && (
-              <div className="absolute top-full right-0 sm:left-0 mt-1 w-64 bg-[#0F172A] border border-indigo-500/70 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs font-mono">
-                <div className="text-[10px] text-indigo-400 font-bold px-1 py-0.5 border-b border-slate-700">
-                  FÁRMACOS ESPECÍFICOS ACLS / 5H y 5T:
+              <div className="absolute bottom-full right-0 sm:right-auto sm:left-0 mb-1.5 w-72 bg-[#0F172A] border border-indigo-500/80 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-1 text-xs font-mono max-h-80 overflow-y-auto">
+                <div className="text-[10px] text-indigo-400 font-bold pb-1 border-b border-slate-700 flex items-center justify-between">
+                  <span>FÁRMACOS ESPECÍFICOS ACLS / 5H y 5T:</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowOtherDrugsMenu(false)}
+                    className="text-slate-400 hover:text-white px-1 font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
                 <button
                   onClick={() => {

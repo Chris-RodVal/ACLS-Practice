@@ -1,3 +1,5 @@
+export const DEFAULT_GEMINI_API_KEY = 'AIzaSyDnALQuCp-KxRsiVpjyPReGXTwDNroh8Go';
+
 const EUNACOM_REDAXION_PROMPT = `
 Eres un médico especialista, docente universitario y redactor oficial de reactivos para el Examen Único Nacional de Conocimientos de Medicina (EUNACOM) de Chile. Tu objetivo es diseñar un simulacro de evaluación de alta fidelidad clínica enfocado en medir las competencias de un médico general de acuerdo al Perfil de Conocimientos oficial de EUNACOM.
 
@@ -334,10 +336,7 @@ export const evaluateAclsSessionWithAI = async ({
   criticalErrors = [],
   simulationState = {}
 }) => {
-  // If no Gemini API key provided, use local intelligent rubric evaluation
-  if (!apiKey || apiKey.trim() === '') {
-    return generateLocalAiEvaluation(currentCase, eventLogs, actionsTaken, criticalErrors, simulationState);
-  }
+  const effectiveApiKey = (apiKey && apiKey.trim() !== '') ? apiKey.trim() : DEFAULT_GEMINI_API_KEY;
 
   const prompt = `
 Eres un Médico Especialista, Docente de la American Heart Association (AHA) e Instructor Oficial de ACLS (Soporte Vital Cardiovascular Avanzado) en Chile.
@@ -421,7 +420,7 @@ DEBES RESPONDER EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON EL SIGUIENTE FORMA
 `;
 
   try {
-    const cleanKey = apiKey?.trim() || '';
+    const cleanKey = effectiveApiKey;
 
     // Provider A: Anthropic Claude
     if (cleanKey.startsWith('sk-ant')) {

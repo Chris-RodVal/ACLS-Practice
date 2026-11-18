@@ -9,10 +9,12 @@ const KEYS = {
   CUSTOM_PROMPT: 'medpulse_custom_prompt'
 };
 
+export const DEFAULT_GEMINI_KEY = 'AIzaSyDnALQuCp-KxRsiVpjyPReGXTwDNroh8Go';
+
 export const storageService = {
   // API Key
   getApiKey: () => {
-    return localStorage.getItem(KEYS.API_KEY) || '';
+    return localStorage.getItem(KEYS.API_KEY) || DEFAULT_GEMINI_KEY;
   },
   setApiKey: (key) => {
     localStorage.setItem(KEYS.API_KEY, key.trim());

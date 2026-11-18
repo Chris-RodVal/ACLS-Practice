@@ -91,7 +91,8 @@ export default function App() {
   const [intubationTimer, setIntubationTimer] = useState(0);
   const [infusedVolumeMl, setInfusedVolumeMl] = useState(0);
   const [aiScorePreview, setAiScorePreview] = useState(null);
-  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('acls_gemini_api_key') || '');
+  const DEFAULT_GEMINI_KEY = 'AIzaSyDnALQuCp-KxRsiVpjyPReGXTwDNroh8Go';
+  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('acls_gemini_api_key') || DEFAULT_GEMINI_KEY);
   const [isApiKeyPromptOpen, setIsApiKeyPromptOpen] = useState(false);
 
   // 7. Modals
@@ -1107,7 +1108,7 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono font-black text-base tracking-wider bg-gradient-to-r from-cyan-400 via-teal-300 to-blue-400 bg-clip-text text-transparent">
-                SIMCORE ACLS MASTER
+                VITALS ACLS Simlator
               </span>
               <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
                 SIMULADOR CLÍNICO
@@ -1199,7 +1200,7 @@ export default function App() {
       <main className="flex-1 p-3 flex flex-col gap-3">
         
         {/* Oscilloscope Monitor & Vital Signs Sidebar (SimCore Layout) */}
-        <div className="bg-[#05080F] border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col md:flex-row h-[420px]">
+        <div className="bg-[#05080F] border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col md:flex-row h-[500px] min-h-[480px]">
           {/* Left: Dynamic 4-channel Canvas Oscilloscope */}
           <div className="flex-1 h-full min-h-[300px]">
             <MonitorCanvas

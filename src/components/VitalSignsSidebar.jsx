@@ -46,12 +46,12 @@ export default function VitalSignsSidebar({
   const currentO2 = O2_DEVICES.find(d => d.id === oxygenDevice) || O2_DEVICES[0];
 
   return (
-    <div className="w-64 bg-[#0A101D] border-l border-slate-800 flex flex-col justify-between p-3 select-none">
+    <div className="w-64 sm:w-72 bg-[#0A101D] border-l border-slate-800 flex flex-col justify-between p-2.5 select-none overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
       {/* Parameters list */}
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2">
 
         {/* 1. Heart Rate (HR / FC) */}
-        <div className="bg-[#0C1524] border border-emerald-900/50 rounded-lg p-2.5 shadow-sm">
+        <div className="bg-[#0C1524] border border-emerald-900/50 rounded-lg p-2 shadow-sm">
           <div className="flex items-center justify-between text-xs text-emerald-400 font-mono font-semibold">
             <span className="flex items-center gap-1.5">
               <Heart className={`w-3.5 h-3.5 text-emerald-400 ${hr > 0 && pulsePresent && !isCprActive ? 'animate-ping' : ''}`} />
@@ -95,7 +95,7 @@ export default function VitalSignsSidebar({
         </div>
 
         {/* 2. SpO2 (Saturación de Oxígeno) */}
-        <div className="bg-[#081726] border border-cyan-900/50 rounded-lg p-2.5 shadow-sm relative">
+        <div className="bg-[#081726] border border-cyan-900/50 rounded-lg p-2 shadow-sm relative">
           <div className="flex items-center justify-between text-xs text-cyan-400 font-mono font-semibold">
             <span className="flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 text-cyan-400" />
@@ -172,7 +172,7 @@ export default function VitalSignsSidebar({
         </div>
 
         {/* 3. NIBP / Presión Arterial */}
-        <div className="bg-[#181120] border border-rose-950/50 rounded-lg p-2.5 shadow-sm">
+        <div className="bg-[#181120] border border-rose-950/50 rounded-lg p-2 shadow-sm">
           <div className="flex items-center justify-between text-xs text-rose-300 font-mono font-semibold">
             <span className="flex items-center gap-1.5">
               <Gauge className="w-3.5 h-3.5 text-rose-400" />
@@ -206,7 +206,7 @@ export default function VitalSignsSidebar({
         </div>
 
         {/* 4. EtCO2 / Capnografía (Solo se muestra valor cuantitativo si el paciente está intubado) */}
-        <div className="bg-[#1C1808] border border-amber-900/50 rounded-lg p-2.5 shadow-sm">
+        <div className="bg-[#1C1808] border border-amber-900/50 rounded-lg p-2 shadow-sm">
           <div className="flex items-center justify-between text-xs text-amber-400 font-mono font-semibold">
             <span className="flex items-center gap-1.5">
               <Wind className="w-3.5 h-3.5 text-amber-400" />
@@ -215,7 +215,7 @@ export default function VitalSignsSidebar({
             <span className="text-[10px] text-amber-500/70">{isAirwaySecured ? 'mmHg' : 'Desconectado'}</span>
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-3xl font-black font-mono tracking-tight text-amber-400">
+            <span className="text-2xl font-black font-mono tracking-tight text-amber-400">
               {isAirwaySecured && etco2 > 0 ? etco2 : '--'}
             </span>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-800 text-amber-400 font-bold">
