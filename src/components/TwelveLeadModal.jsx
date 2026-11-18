@@ -388,7 +388,33 @@ function drawEcgPaperGrid(ctx, width, height) {
   ctx.stroke();
 }
 
+// Pre-computed irregular RR sequence for Atrial Fibrillation (pixels per beat)
+const AFIB_RR_PATTERN = [34, 52, 28, 62, 40, 32, 56, 44, 30, 68, 38, 50, 32, 58, 42, 34, 60];
+
+function getSampleProgress(distX, isAfib, defaultCycle = 55) {
+  if (!isAfib) {
+    return (distX % defaultCycle) / defaultCycle;
+  }
+  let accumulated = 0;
+  for (let i = 0; i < 200; i++) {
+    const cycleLen = AFIB_RR_PATTERN[i % AFIB_RR_PATTERN.length];
+    if (distX < accumulated + cycleLen) {
+      return (distX - accumulated) / cycleLen;
+    }
+    accumulated += cycleLen;
+  }
+  return (distX % defaultCycle) / defaultCycle;
+}
+
 function drawTwelveLeads(ctx, width, height, currentCase, rhythm, phase) {
+  const activeRhythm = phase === 'arrest'
+    ? (currentCase?.arrestType || (currentCase?.isShockable ? 'FV' : 'AESP'))
+    : phase === 'post_rce'
+    ? (currentCase?.rceVitals?.rhythm || 'SINUSAL_ST_ELEVATION')
+    : (rhythm || currentCase?.initialVitals?.rhythm || 'TV_MONOMORFA');
+
+  const isAfib = activeRhythm === 'FA_RVR' || activeRhythm === 'FA';
+
   const leads = [
     { name: 'I', col: 0, row: 0 },
     { name: 'II', col: 0, row: 1 },
@@ -435,7 +461,7 @@ function drawTwelveLeads(ctx, width, height, currentCase, rhythm, phase) {
     const waveStart = x0 + 24;
     const waveEnd = x0 + colWidth - 4;
     for (let x = waveStart; x < waveEnd; x++) {
-      const p = ((x - waveStart) % 55) / 55;
+      const p = getSampleProgress(x - waveStart, isAfib, 55);
       const val = calculateLeadSample(lead.name, p, rhythm, phase, currentCase);
       const y = baselineY - val * 18;
       if (x === waveStart) {
@@ -452,7 +478,7 @@ function drawTwelveLeads(ctx, width, height, currentCase, rhythm, phase) {
   ctx.fillText('II (Tira de Ritmo Continua)', 10, stripY - 24);
   ctx.beginPath();
   for (let x = 10; x < width - 10; x++) {
-    const p = ((x - 10) % 55) / 55;
+    const p = getSampleProgress(x - 10, isAfib, 55);
     const val = calculateLeadSample('II', p, rhythm, phase, currentCase);
     const y = stripY - val * 18;
     if (x === 10) {
@@ -476,33 +502,26 @@ function calculateLeadSample(leadName, p, rhythm, phase, currentCase) {
     return (Math.random() - 0.5) * 0.02;
   }
 
-  // AESP: Actividad eléctrica organizada de escape idioventricular ancho (QRS > 0.14s) a ~48 lpm
+  // AESP: Actividad eléctrica organizada de escape idioventricular (~48 lpm)
   if (activeRhythm === 'AESP' || (typeof activeRhythm === 'string' && activeRhythm.includes('AESP'))) {
     let y = 0;
-    // Onda P disociada/hipóxica pequeña
-    if (p >= 0.04 && p <= 0.12) {
-      y += Math.sin(((p - 0.04) / 0.08) * Math.PI) * (leadName === 'aVR' ? -0.1 : 0.12);
+    if (p >= 0.06 && p < 0.14) {
+      y += Math.sin(((p - 0.06) / 0.08) * Math.PI) * (leadName === 'aVR' ? -0.1 : 0.14);
     }
-    // Complejo QRS ancho y empastado (> 140 ms)
-    if (p >= 0.18 && p < 0.24) {
-      y += ((p - 0.18) / 0.06) * 0.45;
+    if (p >= 0.20 && p < 0.22) {
+      y -= Math.sin(((p - 0.20) / 0.02) * Math.PI) * 0.10;
     }
-    if (p >= 0.24 && p < 0.35) {
-      const rPhase = (p - 0.24) / 0.11;
-      y += 0.45 + Math.sin(rPhase * Math.PI) * 0.85;
-      if (p >= 0.28 && p < 0.305) y -= 0.15; // Muesca apexiana
+    if (p >= 0.22 && p < 0.30) {
+      y += Math.sin(((p - 0.22) / 0.08) * Math.PI) * 1.15;
     }
-    if (p >= 0.35 && p < 0.44) {
-      const sPhase = (p - 0.35) / 0.09;
-      y += 0.45 * (1.0 - sPhase) - Math.sin(sPhase * Math.PI) * 0.25;
+    if (p >= 0.30 && p < 0.34) {
+      y -= Math.sin(((p - 0.30) / 0.04) * Math.PI) * 0.28;
     }
-    // Onda T discordante invertida
-    if (p >= 0.44 && p <= 0.72) {
-      const tPhase = (p - 0.44) / 0.28;
-      y -= Math.sin(tPhase * Math.PI) * 0.35;
+    if (p >= 0.38 && p <= 0.52) {
+      y += Math.sin(((p - 0.38) / 0.14) * Math.PI) * 0.26;
     }
-    const isNegativeVector = ['aVR', 'V1', 'V2'].includes(leadName);
-    return (isNegativeVector ? -y * 0.85 : y) + (Math.random() - 0.5) * 0.02;
+    const isNegativeVector = ['aVR', 'V1'].includes(leadName);
+    return (isNegativeVector ? -y * 0.85 : y) + (Math.random() - 0.5) * 0.012;
   }
 
   // Fibrilación Ventricular
@@ -537,6 +556,26 @@ function calculateLeadSample(leadName, p, rhythm, phase, currentCase) {
     let y = isInferior ? -sawTooth * 0.4 : sawTooth * 0.2;
     if (p >= 0.22 && p < 0.28) {
       y += 1.2;
+    }
+    return y;
+  }
+
+  // Fibrilación Auricular con RVR: irregular, ausencia de ondas P, ondas f caóticas y QRS angosto
+  if (activeRhythm === 'FA_RVR' || activeRhythm === 'FA') {
+    let y = 0;
+    // Ondas f fibrilatorias en la línea de base
+    const fWave = Math.sin(p * 48) * 0.05 + Math.cos(p * 76) * 0.038 + (Math.random() - 0.5) * 0.025;
+    y += fWave;
+
+    const isNegative = leadName === 'aVR';
+    if (p >= 0.18 && p < 0.20) {
+      y -= 0.12;
+    } else if (p >= 0.20 && p < 0.24) {
+      y += isNegative ? -1.0 : (leadName.startsWith('V') ? 1.45 : 1.15);
+    } else if (p >= 0.24 && p < 0.27) {
+      y -= isNegative ? -0.2 : 0.35;
+    } else if (p >= 0.36 && p <= 0.52) {
+      y += Math.sin(((p - 0.36) / 0.16) * Math.PI) * (isNegative ? -0.18 : 0.26);
     }
     return y;
   }

@@ -35,6 +35,8 @@ export default function MonitorCanvas({
     capnoPhase: 0,
     pacerPhase: 0,
     lastBeatTime: 0,
+    currentBeatDuration: 0.40,
+    wenckebachBeat: 0,
     lastQrsTriggered: 0,
     lastPacerTriggered: 0
   });
@@ -132,6 +134,7 @@ export default function MonitorCanvas({
       // Determine effective electrical rate for oscilloscope animation
       let currentHr = p.isPacingActive ? p.pacerRate : p.hr;
       const isAesp = p.rhythm === 'AESP' || (typeof p.rhythm === 'string' && p.rhythm.includes('AESP'));
+      const isAfib = p.rhythm === 'FA_RVR' || p.rhythm === 'FA';
       
       // When mechanical pulse is lost (cardiac arrest or arrhythmia), the heart still has electrical depolarization:
       if (!currentHr || currentHr <= 0) {
@@ -143,31 +146,57 @@ export default function MonitorCanvas({
           currentHr = 220;
         } else if (p.rhythm === 'TSVP') {
           currentHr = 180;
-        } else if (p.rhythm === 'FA_RVR') {
-          currentHr = 140;
+        } else if (isAfib) {
+          currentHr = 150;
         } else if (p.rhythm === 'FLUTTER') {
           currentHr = 150;
         }
       }
 
-      const beatInterval = currentHr > 0 ? 60 / currentHr : 9999;
+      // Initialize s.currentBeatDuration if not set
+      if (!s.currentBeatDuration || s.currentBeatDuration <= 0) {
+        s.currentBeatDuration = currentHr > 0 ? 60 / currentHr : 0.8;
+      }
+
       const timeSinceLastBeat = (now - s.lastBeatTime) / 1000;
 
-      if (currentHr > 0 && timeSinceLastBeat >= beatInterval) {
+      if (currentHr > 0 && timeSinceLastBeat >= s.currentBeatDuration) {
         s.lastBeatTime = now;
         s.beatPhase = 0;
-        // Trigger audible QRS beep only if pulse is present or paced (ACLS standard: monitors beep on detected R waves or pulse)
+
+        // Choose NEXT beat duration:
+        if (isAfib) {
+          // Atrial Fibrillation with RVR:
+          // "Irregularmente irregular" - varying RR intervals with physiological dispersion around mean HR (~140-160 lpm).
+          // Intervals range between ~0.24s (~250 lpm) and ~0.65s (~92 lpm) with occasional compensatory pauses.
+          const meanInterval = 60 / currentHr;
+          // Random spread between 0.65 and 1.35
+          const randomFactor = 0.65 + Math.random() * 0.70;
+          // 15% probability of a diastolic pause (Ashman sequence)
+          const pauseFactor = Math.random() < 0.15 ? 1.40 + Math.random() * 0.30 : 1.0;
+          s.currentBeatDuration = Math.max(0.24, Math.min(0.75, meanInterval * randomFactor * pauseFactor));
+        } else if (p.rhythm === 'BAV_2_WENCKEBACH' || p.rhythm === 'BAV_2_MOBITZ_1') {
+          s.wenckebachBeat = ((s.wenckebachBeat || 0) + 1) % 4;
+          const baseInt = 60 / currentHr;
+          s.currentBeatDuration = s.wenckebachBeat === 3 ? baseInt * 1.85 : baseInt * 0.95;
+        } else {
+          s.currentBeatDuration = 60 / currentHr;
+        }
+
+        // Trigger audible QRS beep on beat onset
         if (p.pulsePresent || ['TV_MONOMORFA', 'TSVP', 'FA_RVR', 'FLUTTER', 'SINUSAL', 'SINUSAL_BRADI', 'BRADICARDIA_SINUSAL', 'BAV_3', 'BAV_2_MOBITZ_2'].includes(p.rhythm)) {
           if (p.onQRSBeat) p.onQRSBeat(p.spo2);
         }
       }
 
-      // Normalized beat progress 0.0 to 1.0 within one RR cycle
-      const cycleProgress = beatInterval > 0 && beatInterval < 9000 ? Math.min(1.0, timeSinceLastBeat / beatInterval) : 0;
+      // Normalized beat progress 0.0 to 1.0 within the current RR cycle
+      const cycleProgress = s.currentBeatDuration > 0 && s.currentBeatDuration < 9000
+        ? Math.min(1.0, timeSinceLastBeat / s.currentBeatDuration)
+        : 0;
 
       // Compute channel values
-      const ecgVal = getECGValue(p.rhythm, cycleProgress, s, p.isCprActive, p.isPacingActive, p.ecgGain);
-      const ecgValV5 = getECGV5Value(p.rhythm, cycleProgress, s, p.isCprActive, p.ecgGain);
+      const ecgVal = getECGValue(p.rhythm, cycleProgress, s, p.isCprActive, p.isPacingActive, p.ecgGain, timeSinceLastBeat, s.currentBeatDuration);
+      const ecgValV5 = getECGV5Value(p.rhythm, cycleProgress, s, p.isCprActive, p.ecgGain, timeSinceLastBeat, s.currentBeatDuration);
       const plethVal = getPlethValue(p.pulsePresent, cycleProgress, p.spo2, p.isCprActive);
       const capnoVal = getCapnoValue(p.isAirwaySecured, p.isCprActive, p.etco2, cycleProgress, now);
 
@@ -374,7 +403,7 @@ function drawLineSegment(ctx, x0, y0, x1, y1, color, lineWidth) {
 }
 
 // Realistic ECG waveform calculation for Lead II (D2)
-function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
+function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0, timeSinceLastBeat = 0, currentBeatDuration = 0.4) {
   let val = 0;
 
   switch (rhythm) {
@@ -426,16 +455,17 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
     }
 
     case 'FA_RVR':
-      // Atrial Fibrillation with RVR: no P wave, fibrillatory f-waves on baseline, sharp narrow QRS
-      val = getStandardPQRST(p, false, true, false, 0.0);
-      val += (Math.sin(p * 32) + Math.cos(p * 48)) * 0.06; // f-waves
+    case 'FA':
+      // Fibrilación Auricular con RVR: irregularmente irregular, sin ondas P, f-waves caóticas
+      val = getAfibComplex(timeSinceLastBeat, currentBeatDuration, performance.now() * 0.001);
       break;
 
-    case 'FLUTTER':
-      // Atrial Flutter: sawtooth F-waves at ~300/min in Lead II with conduction
-      const fSaw = (((p * 4) % 1.0) - 0.5) * 0.28;
+    case 'FLUTTER': {
+      // Atrial Flutter 2:1: ondas F negativas en serrucho a 300 lpm en D2 (2 ondas F por complejo)
+      const fSaw = -((((p * 2) % 1.0) - 0.5) * 0.35);
       val = getStandardPQRST(p, false, true, false, 0.0) + fSaw;
       break;
+    }
 
     case 'TSVP':
       // Narrow QRS, high rate, retro or hidden P wave
@@ -449,8 +479,8 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
 
     case 'BAV_2_WENCKEBACH':
     case 'BAV_2_MOBITZ_1':
-      // 2nd degree Mobitz I: Wenckebach phenomenon (progressive PR prolongation then dropped QRS)
-      val = getWenckebachComplex(p);
+      // 2nd degree Mobitz I: Wenckebach phenomenon (alargamiento progresivo de PR hasta caída de QRS)
+      val = getWenckebachComplex(p, s ? s.wenckebachBeat : 0);
       break;
 
     case 'BAV_2_MOBITZ_2':
@@ -518,7 +548,7 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0) {
 }
 
 // ECG Lead V5 (D5) vector
-function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0) {
+function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0, timeSinceLastBeat = 0, currentBeatDuration = 0.4) {
   let val = 0;
   const isAesp = rhythm === 'AESP' || (typeof rhythm === 'string' && rhythm.includes('AESP'));
 
@@ -543,6 +573,9 @@ function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0) {
   } else if (isAesp) {
     // AESP en V5: complejos organizados idioventriculares
     val = getAespComplex(p) * 0.85;
+  } else if (rhythm === 'FA_RVR' || rhythm === 'FA') {
+    // V5 vector para FA: complexes QRS estrechos con R prominente y f-waves desfasadas
+    val = getAfibComplex(timeSinceLastBeat, currentBeatDuration, performance.now() * 0.001 + 0.25, 1.35);
   } else if (['TV_MONOMORFA', 'TVSP'].includes(rhythm)) {
     val = -Math.sin(p * Math.PI * 2) * 0.85 + (Math.random() - 0.5) * 0.02;
   } else {
@@ -686,33 +719,73 @@ function getFirstDegreeAvBlock(p) {
   return y;
 }
 
-// 2nd Degree AV Block Mobitz I (Wenckebach)
-function getWenckebachComplex(p) {
-  // Simulates cycling progressive PR lengthening and periodically dropped beat
-  const beatCycle = Math.floor((performance.now() / 2500) % 3);
+// 2nd Degree AV Block Mobitz I (Wenckebach 4:3 block)
+function getWenckebachComplex(p, beatStep = 0) {
   let y = 0;
 
-  if (beatCycle === 2) {
-    // Dropped beat: P wave present, NO QRS!
+  if (beatStep === 3) {
+    // 4to latido bloqueado: Onda P presente en 0.10, ¡QRS bloqueado! Pausa compensadora.
     if (p >= 0.08 && p <= 0.18) {
       y += Math.sin(((p - 0.08) / 0.10) * Math.PI) * 0.22;
     }
-    return y;
+    return y + (Math.random() - 0.5) * 0.012;
   }
 
-  // Progressive PR offset: beatCycle 0 = PR 0.16, beatCycle 1 = PR 0.28
-  const prOffset = beatCycle * 0.08;
+  // Alargamiento progresivo fisiológico del intervalo PR
+  const prOffset = beatStep * 0.06;
   if (p >= 0.04 && p <= 0.12) {
     y += Math.sin(((p - 0.04) / 0.08) * Math.PI) * 0.18;
   }
-  const qrsStart = 0.20 + prOffset;
-  if (p >= qrsStart && p < qrsStart + 0.03) {
-    y += Math.sin(((p - qrsStart) / 0.03) * Math.PI) * 1.1;
+  const qrsStart = 0.18 + prOffset;
+  if (p >= qrsStart && p < qrsStart + 0.04) {
+    y += Math.sin(((p - qrsStart) / 0.04) * Math.PI) * 1.15;
   }
   const tStart = qrsStart + 0.14;
   if (p >= tStart && p <= tStart + 0.16) {
-    y += Math.sin(((p - tStart) / 0.16) * Math.PI) * 0.3;
+    y += Math.sin(((p - tStart) / 0.16) * Math.PI) * 0.30;
   }
+  return y + (Math.random() - 0.5) * 0.012;
+}
+
+// Atrial Fibrillation with Rapid Ventricular Response (FA con RVR)
+// Criterios diagnósticos ECG estrictos:
+// 1. Ritmo "Irregularmente Irregular" (cadencia RR caótica y asimétrica)
+// 2. Ausencia completa de ondas P sinusales
+// 3. Ondas f fibrilatorias caóticas continuas en la línea de base (400-600/min)
+// 4. Complejo QRS estrecho fisiológico (~80 ms)
+function getAfibComplex(timeSec, cycleDuration, nowSec, rScale = 1.0) {
+  let y = 0;
+
+  // 1. Ondas f fibrilatorias continuas de alta frecuencia en la línea de base
+  const fWaves = Math.sin(nowSec * 50) * 0.045 +
+                 Math.sin(nowSec * 78 + Math.cos(nowSec * 32)) * 0.038 +
+                 Math.cos(nowSec * 95) * 0.025 +
+                 (Math.random() - 0.5) * 0.020;
+  y += fWaves;
+
+  // 2. Complejo QRS angosto fisiológico (~80 ms)
+  // Gatillado al inicio de cada ciclo de despolarización ventricular
+  if (timeSec >= 0.02 && timeSec < 0.04) {
+    const qPhase = (timeSec - 0.02) / 0.02;
+    y -= Math.sin(qPhase * Math.PI) * 0.12;
+  }
+  if (timeSec >= 0.04 && timeSec < 0.08) {
+    const rPhase = (timeSec - 0.04) / 0.04;
+    y += Math.sin(rPhase * Math.PI) * (1.20 * rScale);
+  }
+  if (timeSec >= 0.08 && timeSec < 0.11) {
+    const sPhase = (timeSec - 0.08) / 0.03;
+    y -= Math.sin(sPhase * Math.PI) * 0.35;
+  }
+
+  // 3. Segmento ST y Onda T rápida de repolarización (~120 ms)
+  if (timeSec >= 0.11 && timeSec <= 0.24) {
+    const tPhase = (timeSec - 0.11) / 0.13;
+    const stStrain = -0.06 * (1.0 - tPhase);
+    const tWave = Math.sin(tPhase * Math.PI) * 0.22;
+    y += stStrain + tWave;
+  }
+
   return y;
 }
 
