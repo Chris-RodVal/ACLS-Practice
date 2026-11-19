@@ -16,6 +16,16 @@ class ClinicalSoundEngine {
     this.selectedMaleVoice = null;
     this.selectedFemaleVoice = null;
 
+    // ElevenLabs Hyperrealistic Cloud Voice Settings
+    this.elevenLabsKey = typeof localStorage !== 'undefined' ? (localStorage.getItem('acls_elevenlabs_key') || '') : '';
+    this.elevenLabsVoiceIds = {
+      male: 'ErXwobaYiN019PkySvjV',   // Antoni - Natural, warm, realistic Spanish/multilingual male
+      female: '21m00Tcm4TlvDq8ikWAM', // Rachel - Expressive, human Spanish/multilingual female
+      system: 'onwK4e9ZLuTAKqWW03F9'  // Daniel - Deep, calm, authoritative proctor
+    };
+    this.audioCache = new Map();
+    this.currentAudio = null;
+
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       this.initVoices();
       window.speechSynthesis.onvoiceschanged = () => {
@@ -139,9 +149,100 @@ class ClinicalSoundEngine {
       .trim();
   }
 
-  // Native Speech Synthesis in Spanish for patient speech & clinical proctor
-  speak(text, role = 'system', gender = 'M') {
+  setElevenLabsKey(key) {
+    this.elevenLabsKey = (key || '').trim();
+    if (typeof localStorage !== 'undefined') {
+      if (this.elevenLabsKey) {
+        localStorage.setItem('acls_elevenlabs_key', this.elevenLabsKey);
+      } else {
+        localStorage.removeItem('acls_elevenlabs_key');
+      }
+    }
+  }
+
+  getElevenLabsKey() {
+    return this.elevenLabsKey;
+  }
+
+  // Play audio stream from ElevenLabs or audio blob
+  playAudioStream(audioUrl) {
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+        this.currentAudio.currentTime = 0;
+      } catch (e) {}
+    }
+    const audio = new Audio(audioUrl);
+    this.currentAudio = audio;
+    audio.play().catch(e => {
+      console.warn('Audio play prevented or interrupted:', e);
+    });
+  }
+
+  // Synthesis via ElevenLabs API (returns true if handled, false to fallback)
+  async speakViaElevenLabs(cleanText, role = 'system', gender = 'M') {
+    if (!this.elevenLabsKey || !cleanText) return false;
+
+    const isFemale = gender === 'F' || gender === 'femenino' || gender === 'Mujer';
+    const voiceId = role === 'system'
+      ? this.elevenLabsVoiceIds.system
+      : (isFemale ? this.elevenLabsVoiceIds.female : this.elevenLabsVoiceIds.male);
+
+    const cacheKey = `${voiceId}_${cleanText}`;
+    if (this.audioCache.has(cacheKey)) {
+      this.playAudioStream(this.audioCache.get(cacheKey));
+      return true;
+    }
+
+    try {
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': this.elevenLabsKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: cleanText,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: role === 'patient' ? 0.4 : 0.65,
+            similarity_boost: 0.82,
+            style: role === 'patient' ? 0.35 : 0.1,
+            use_speaker_boost: true
+          }
+        })
+      });
+
+      if (!response.ok) {
+        console.warn('ElevenLabs API response status:', response.status);
+        return false;
+      }
+
+      const blob = await response.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      this.audioCache.set(cacheKey, audioUrl);
+      this.playAudioStream(audioUrl);
+      return true;
+    } catch (err) {
+      console.warn('ElevenLabs API network error, falling back to neural browser voice:', err);
+      return false;
+    }
+  }
+
+  // High-Fidelity Speech Synthesis in Spanish for patient speech & clinical proctor
+  async speak(text, role = 'system', gender = 'M') {
     if (this.voiceMuted || !text) return;
+
+    const cleanText = this.normalizeMedicalSpokenText(text);
+    if (!cleanText) return;
+
+    // 1. Try ElevenLabs Hyperrealistic Cloud Voice if API key configured
+    if (this.elevenLabsKey) {
+      const success = await this.speakViaElevenLabs(cleanText, role, gender);
+      if (success) return;
+    }
+
+    // 2. High-Quality Local Neural / Web Speech API (Zero-setup, 100% free fallback)
     if (!('speechSynthesis' in window)) return;
 
     try {
@@ -150,9 +251,6 @@ class ClinicalSoundEngine {
       }
 
       window.speechSynthesis.cancel();
-      const cleanText = this.normalizeMedicalSpokenText(text);
-      if (!cleanText) return;
-
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = 'es-ES';
 
@@ -164,8 +262,8 @@ class ClinicalSoundEngine {
           if (chosenVoice.lang) utterance.lang = chosenVoice.lang;
         }
         // Human expressive cadence for patient in clinical distress
-        utterance.rate = 0.94;
-        utterance.pitch = isFemale ? 1.06 : 0.96;
+        utterance.rate = 0.93;
+        utterance.pitch = isFemale ? 1.08 : 0.94;
       } else {
         // System proctor / clinical monitor: professional, calm, authoritative
         if (this.selectedSystemVoice) {

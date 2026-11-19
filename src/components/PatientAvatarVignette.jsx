@@ -318,10 +318,10 @@ export default function PatientAvatarVignette({
             </span>
           </div>
 
-          {/* SVG Human Realistic Avatar */}
+          {/* SVG Human Realistic Avatar con Camilla de Hospital, Cables y Entorno Clínico */}
           <svg
-            viewBox="0 0 160 180"
-            className="w-24 h-24 sm:w-28 sm:h-28 drop-shadow-md select-none transition-all duration-300"
+            viewBox="0 0 200 200"
+            className="w-28 h-28 sm:w-32 sm:h-32 drop-shadow-lg select-none transition-all duration-300 rounded-md"
           >
             <defs>
               {/* Radial gradient for human head contour */}
@@ -338,279 +338,444 @@ export default function PatientAvatarVignette({
                 <stop offset="100%" stopColor={skinShadow} stopOpacity="0.4" />
               </linearGradient>
 
+              {/* Camilla / Stretcher mattress gradient */}
+              <linearGradient id="mattressGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#172A45" />
+                <stop offset="50%" stopColor="#111E33" />
+                <stop offset="100%" stopColor="#0B1422" />
+              </linearGradient>
+
+              {/* Pillow gradient */}
+              <linearGradient id="pillowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#254269" />
+                <stop offset="100%" stopColor="#1A2F4C" />
+              </linearGradient>
+
+              {/* Hospital wall vignette */}
+              <linearGradient id="wallGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#0D1B2A" />
+                <stop offset="100%" stopColor="#060C16" />
+              </linearGradient>
+
               {/* Penlight beam */}
               <linearGradient id="penlightRay" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#FEF08A" stopOpacity="0.85" />
+                <stop offset="0%" stopColor="#FEF08A" stopOpacity="0.9" />
                 <stop offset="100%" stopColor="#FEF08A" stopOpacity="0.0" />
               </linearGradient>
             </defs>
 
-            {/* Neck & Clavicle base */}
-            <path
-              d="M 58 122 L 54 175 L 106 175 L 102 122 Z"
-              fill={skinShadow}
-            />
-            {/* Sternocleidomastoid muscle shadows */}
-            <path d="M 64 135 Q 76 160 76 175" stroke={isArrest ? '#475569' : '#B07850'} strokeWidth="1.2" fill="none" opacity="0.5" />
-            <path d="M 96 135 Q 84 160 84 175" stroke={isArrest ? '#475569' : '#B07850'} strokeWidth="1.2" fill="none" opacity="0.5" />
+            {/* 1. FONDO: Sala de Reanimación & Pared Clínica */}
+            <rect x="0" y="0" width="200" height="200" fill="url(#wallGrad)" />
+            {/* Línea de junta de azulejo hospitalario */}
+            <line x1="0" y1="42" x2="200" y2="42" stroke="#1E293B" strokeWidth="0.8" opacity="0.4" />
 
-            {/* Realistic Ears (Left & Right with tragus and concha) */}
-            <g fill={skinShadow} stroke={isArrest ? '#475569' : '#9E653F'} strokeWidth="0.8">
-              {/* Left Ear */}
-              <path d="M 40 68 C 30 68 28 85 34 100 C 37 106 42 104 42 98 C 36 92 36 78 40 72 Z" />
-              <path d="M 36 78 Q 33 88 38 92" fill="none" strokeWidth="0.7" />
-              {/* Right Ear */}
-              <path d="M 120 68 C 130 68 132 85 126 100 C 123 106 118 104 118 98 C 124 92 124 78 120 72 Z" />
-              <path d="M 124 78 Q 127 88 122 92" fill="none" strokeWidth="0.7" />
+            {/* Panel de Gases Medicinales de Pared (Oxígeno Verde, Aspiración Vacío Amarilla) */}
+            <g opacity="0.85">
+              <rect x="8" y="8" width="48" height="22" rx="2" fill="#132035" stroke="#1E3A5F" strokeWidth="0.8" />
+              {/* O2 Terminal (Verde medicinal) */}
+              <circle cx="20" cy="19" r="4.5" fill="#16A34A" stroke="#0F172A" strokeWidth="1" />
+              <circle cx="20" cy="19" r="1.8" fill="#DCFCE7" />
+              <text x="18" y="29" fill="#4ADE80" fontSize="5" fontFamily="monospace" fontWeight="bold">O₂</text>
+              {/* VAC Terminal (Amarillo aspiración) */}
+              <circle cx="34" cy="19" r="4.5" fill="#EAB308" stroke="#0F172A" strokeWidth="1" />
+              <circle cx="34" cy="19" r="1.8" fill="#FEF08A" />
+              <text x="30" y="29" fill="#FDE047" fontSize="5" fontFamily="monospace" fontWeight="bold">VAC</text>
+              {/* Toma de Corriente Grado Médico Roja */}
+              <rect x="46" y="15" width="6" height="8" rx="1" fill="#DC2626" opacity="0.9" />
             </g>
 
-            {/* Realistic Human Face Contour */}
+            {/* 2. CAMILLA DE HOSPITAL / REANIMACIÓN (Stretcher) */}
+            {/* Cabezal de la camilla con marco tubular cromado */}
             <path
-              d="M 80 18 C 42 18 38 46 38 78 C 38 114 54 138 80 138 C 106 138 122 114 122 78 C 122 46 118 18 80 18 Z"
+              d="M 22 18 C 22 8 178 8 178 18 L 184 195 L 16 195 Z"
+              fill="url(#mattressGrad)"
+              stroke="#334155"
+              strokeWidth="1.5"
+            />
+            {/* Brillo tubular del marco de la camilla */}
+            <path d="M 26 20 C 35 12 165 12 174 20" stroke="#64748B" strokeWidth="1.2" fill="none" opacity="0.7" />
+
+            {/* Barandas de Seguridad de la Camilla (Izquierda y Derecha) */}
+            <g stroke="#475569" strokeWidth="1.2" opacity="0.6">
+              {/* Baranda Izquierda */}
+              <line x1="16" y1="45" x2="16" y2="175" strokeWidth="2" stroke="#64748B" />
+              <line x1="16" y1="75" x2="26" y2="75" />
+              <line x1="16" y1="110" x2="26" y2="110" />
+              <line x1="16" y1="145" x2="26" y2="145" />
+              {/* Baranda Derecha */}
+              <line x1="184" y1="45" x2="184" y2="175" strokeWidth="2" stroke="#64748B" />
+              <line x1="184" y1="75" x2="174" y2="75" />
+              <line x1="184" y1="110" x2="174" y2="110" />
+              <line x1="184" y1="145" x2="174" y2="145" />
+            </g>
+
+            {/* Almohada de la camilla bajo la cabeza */}
+            <rect
+              x="52"
+              y="22"
+              width="96"
+              height="80"
+              rx="14"
+              fill="url(#pillowGrad)"
+              stroke="#253D61"
+              strokeWidth="1.2"
+              opacity="0.95"
+            />
+
+            {/* Sábana clínica blanca desechable plegada bajo el cuello y hombros */}
+            <path
+              d="M 40 102 C 65 96 135 96 160 102 L 168 195 L 32 195 Z"
+              fill="#CBD5E1"
+              stroke="#94A3B8"
+              strokeWidth="0.8"
+              opacity="0.85"
+            />
+
+            {/* 3. BATA DE PACIENTE HOSPITALARIA (Surgical Blue Gown) */}
+            <path
+              d="M 46 126 C 72 120 128 120 154 126 L 165 198 L 35 198 Z"
+              fill="#0369A1"
+              opacity="0.9"
+            />
+            {/* Cuello en V de la bata */}
+            <path
+              d="M 82 126 L 100 144 L 118 126"
+              stroke="#E0F2FE"
+              strokeWidth="1.5"
+              fill="none"
+              opacity="0.8"
+            />
+
+            {/* 4. CABLES DE MONITOREO CLÍNICO & PARCHES DE DESFIBRILACIÓN */}
+            {/* Cable y Electrodo Derecho (RA - Blanco) */}
+            <path
+              d="M 68 136 C 45 145 28 130 8 138"
+              stroke="#F8FAFC"
+              strokeWidth="1.4"
+              fill="none"
+              opacity="0.9"
+            />
+            <circle cx="68" cy="136" r="4.2" fill="#E2E8F0" stroke="#0284C7" strokeWidth="1" />
+            <circle cx="68" cy="136" r="1.5" fill="#0284C7" />
+
+            {/* Cable y Electrodo Izquierdo (LA - Negro) */}
+            <path
+              d="M 132 136 C 155 145 172 130 192 138"
+              stroke="#1E293B"
+              strokeWidth="1.6"
+              fill="none"
+            />
+            <circle cx="132" cy="136" r="4.2" fill="#E2E8F0" stroke="#0F172A" strokeWidth="1" />
+            <circle cx="132" cy="136" r="1.5" fill="#0F172A" />
+
+            {/* Cable y Electrodo Inferior (LL - Rojo) */}
+            <path
+              d="M 100 162 C 120 178 150 170 192 175"
+              stroke="#EF4444"
+              strokeWidth="1.4"
+              fill="none"
+              opacity="0.9"
+            />
+            <circle cx="100" cy="162" r="4" fill="#FCA5A5" stroke="#DC2626" strokeWidth="1" />
+            <circle cx="100" cy="162" r="1.5" fill="#DC2626" />
+
+            {/* Vía Venosa Periférica (Catéter IV con tubo de infusión transparente) */}
+            <path
+              d="M 38 185 C 46 168 54 162 62 152"
+              stroke="#38BDF8"
+              strokeWidth="1.2"
+              strokeDasharray="3 1.5"
+              fill="none"
+              opacity="0.8"
+            />
+
+            {/* Sensor y Cable de Oximetría de Pulso SpO2 con destello LED rojo */}
+            <path
+              d="M 28 165 C 22 172 18 185 10 190"
+              stroke="#0F172A"
+              strokeWidth="1.2"
+              fill="none"
+            />
+            <circle cx="28" cy="165" r="2.2" fill="#EF4444" className="animate-pulse" />
+
+            {/* Parches Grandes de Desfibrilación / DEA (En Paro Cardíaco) */}
+            {isArrest && (
+              <g>
+                {/* Parche Esternal Derecho */}
+                <rect x="60" y="128" width="16" height="12" rx="3" fill="#F59E0B" stroke="#B45309" strokeWidth="1" opacity="0.95" />
+                <path d="M 68 128 C 65 118 55 110 38 112" stroke="#F59E0B" strokeWidth="2" fill="none" />
+                {/* Parche Apical Izquierdo */}
+                <rect x="126" y="146" width="16" height="12" rx="3" fill="#F59E0B" stroke="#B45309" strokeWidth="1" opacity="0.95" />
+                <path d="M 134 158 C 145 168 165 170 185 168" stroke="#F59E0B" strokeWidth="2" fill="none" />
+              </g>
+            )}
+
+            {/* 5. CUELLO Y MÚSCULOS ESTERNOCLEIDOMASTOIDEOS */}
+            <path
+              d="M 78 108 L 74 135 L 126 135 L 122 108 Z"
+              fill={skinShadow}
+            />
+            {/* Sombras musculares esternocleidomastoideas */}
+            <path d="M 84 114 Q 96 128 96 135" stroke={isArrest ? '#475569' : '#B07850'} strokeWidth="1.2" fill="none" opacity="0.5" />
+            <path d="M 116 114 Q 104 128 104 135" stroke={isArrest ? '#475569' : '#B07850'} strokeWidth="1.2" fill="none" opacity="0.5" />
+
+            {/* Orejas Anatómicas (Trago y Concha) */}
+            <g fill={skinShadow} stroke={isArrest ? '#475569' : '#9E653F'} strokeWidth="0.8">
+              {/* Oreja Izquierda */}
+              <path d="M 60 58 C 50 58 48 75 54 90 C 57 96 62 94 62 88 C 56 82 56 68 60 62 Z" />
+              <path d="M 56 68 Q 53 78 58 82" fill="none" strokeWidth="0.7" />
+              {/* Oreja Derecha */}
+              <path d="M 140 58 C 150 58 152 75 146 90 C 143 96 138 94 138 88 C 144 82 144 68 140 62 Z" />
+              <path d="M 144 68 Q 147 78 142 82" fill="none" strokeWidth="0.7" />
+            </g>
+
+            {/* Contorno Facial Humano Realista */}
+            <path
+              d="M 100 12 C 62 12 58 40 58 72 C 58 106 74 126 100 126 C 126 126 142 106 142 72 C 142 40 138 12 100 12 Z"
               fill="url(#realisticSkin)"
               stroke={isArrest ? '#475569' : '#A76D45'}
               strokeWidth="1.2"
             />
 
-            {/* Realistic Hair with volume and age styling */}
+            {/* Cabello Humano Realista con Volumen y Rasgos de Edad */}
             {isFemale ? (
               <g fill={hairColor}>
-                {/* Female Hair Volume framing face */}
-                <path d="M 36 85 C 32 35 48 12 80 12 C 112 12 128 35 124 85 C 130 115 128 140 122 150 C 118 120 118 42 108 30 C 94 20 66 20 52 30 C 42 42 42 120 38 150 C 32 140 30 115 36 85 Z" />
-                {/* Highlights / Streaks */}
+                {/* Cabello Femenino Natural con Caída sobre Almohada */}
+                <path d="M 56 78 C 52 30 68 8 100 8 C 132 8 148 30 144 78 C 150 108 148 130 142 140 C 138 110 138 38 128 26 C 114 16 86 16 72 26 C 62 38 62 110 58 140 C 52 130 50 108 56 78 Z" />
+                {/* Mechones y Reflejos para Adulta Mayor */}
                 {isElderly && (
-                  <path d="M 55 24 Q 80 16 105 24 M 44 48 Q 50 28 65 24 M 116 48 Q 110 28 95 24" stroke="#CBD5E1" strokeWidth="1" fill="none" opacity="0.6" />
+                  <path d="M 75 20 Q 100 12 125 20 M 64 42 Q 70 24 85 20 M 136 42 Q 130 24 115 20" stroke="#CBD5E1" strokeWidth="1" fill="none" opacity="0.6" />
                 )}
               </g>
             ) : (
               <g fill={hairColor}>
-                {/* Male Hair - Receding temples if elderly, realistic sideburns */}
+                {/* Cabello Masculino - Entradas si es adulto mayor, patillas definidas */}
                 {isElderly ? (
-                  /* Older male with receding hairline */
-                  <path d="M 38 72 C 37 45 44 32 58 32 C 68 32 72 40 80 40 C 88 40 92 32 102 32 C 116 32 123 45 122 72 C 118 48 112 24 80 24 C 48 24 42 48 38 72 Z" />
+                  /* Hombre mayor con entradas y coronilla rala */
+                  <path d="M 58 64 C 57 38 64 24 78 24 C 88 24 92 32 100 32 C 108 32 112 24 122 24 C 136 24 143 38 142 64 C 138 42 132 18 100 18 C 68 18 62 42 58 64 Z" />
                 ) : (
-                  /* Fuller hair for younger/middle-aged */
-                  <path d="M 38 72 C 36 28 48 14 80 14 C 112 14 124 28 122 72 C 116 28 106 20 80 20 C 54 20 44 28 38 72 Z" />
+                  /* Cabello más poblado para jóvenes y mediana edad */
+                  <path d="M 58 64 C 56 22 68 10 100 10 C 132 10 144 22 142 64 C 136 24 126 16 100 16 C 74 16 64 24 58 64 Z" />
                 )}
-                {/* Grey / silver hair texture strands */}
+                {/* Canas / Hebras Plateadas Naturales */}
                 {(isElderly || isMiddleAged) && (
                   <g stroke="#E2E8F0" strokeWidth="0.8" opacity="0.5" fill="none">
-                    <path d="M 40 68 Q 42 50 50 42" />
-                    <path d="M 120 68 Q 118 50 110 42" />
-                    <path d="M 52 36 Q 80 28 108 36" />
+                    <path d="M 60 60 Q 62 42 70 34" />
+                    <path d="M 140 60 Q 138 42 130 34" />
+                    <path d="M 72 28 Q 100 20 128 28" />
                   </g>
                 )}
               </g>
             )}
 
-            {/* Subtle 5 o'clock stubble shadow for male patients */}
+            {/* Sombra de barba incipiente para hombres */}
             {!isFemale && !isArrest && (
               <path
-                d="M 52 98 C 52 125 64 135 80 135 C 96 135 108 125 108 98 C 104 112 96 122 80 122 C 64 122 56 112 52 98 Z"
+                d="M 72 88 C 72 115 84 124 100 124 C 116 124 128 115 128 88 C 124 102 116 112 100 112 C 84 112 76 102 72 88 Z"
                 fill="#3A2822"
                 opacity="0.12"
               />
             )}
 
-            {/* AGE WRINKLES & ANATOMICAL EXPRESSION LINES */}
+            {/* ARRUGAS ANATÓMICAS POR EDAD & LÍNEAS DE EXPRESIÓN */}
             <g stroke={isArrest ? '#475569' : '#8A5A38'} strokeWidth="0.8" fill="none" opacity={isElderly ? 0.75 : (isMiddleAged ? 0.45 : 0.2)}>
-              {/* Forehead worry lines (3 curved parallel lines) */}
-              <path d="M 56 38 Q 80 34 104 38" />
-              <path d="M 54 44 Q 80 40 106 44" />
-              {isElderly && <path d="M 58 50 Q 80 46 102 50" />}
+              {/* Líneas frontales de preocupación (3 curvas paralelas) */}
+              <path d="M 76 30 Q 100 26 124 30" />
+              <path d="M 74 36 Q 100 32 126 36" />
+              {isElderly && <path d="M 78 42 Q 100 38 122 42" />}
 
-              {/* Glabellar vertical frown lines (between brows) */}
-              <path d="M 77 56 L 77 62" strokeWidth="1" />
-              <path d="M 83 56 L 83 62" strokeWidth="1" />
+              {/* Ceño fruncido glabelar (entre las cejas) */}
+              <path d="M 97 48 L 97 54" strokeWidth="1" />
+              <path d="M 103 48 L 103 54" strokeWidth="1" />
 
-              {/* Crow's feet ("Patas de gallo" at eye corners) */}
+              {/* Patas de gallo en comisuras oculares */}
               {isElderly && (
                 <>
-                  <path d="M 48 68 L 42 66" />
-                  <path d="M 47 71 L 40 71" />
-                  <path d="M 48 74 L 42 76" />
-                  <path d="M 112 68 L 118 66" />
-                  <path d="M 113 71 L 120 71" />
-                  <path d="M 112 74 L 118 76" />
+                  <path d="M 68 60 L 62 58" />
+                  <path d="M 67 63 L 60 63" />
+                  <path d="M 68 66 L 62 68" />
+                  <path d="M 132 60 L 138 58" />
+                  <path d="M 133 63 L 140 63" />
+                  <path d="M 132 66 L 138 68" />
                 </>
               )}
 
-              {/* Under-eye bags / Tear troughs (Ojeras) */}
-              <path d="M 54 77 Q 63 82 72 78" />
-              <path d="M 88 78 Q 97 82 106 77" />
+              {/* Ojeras y surcos infraorbitarios */}
+              <path d="M 74 69 Q 83 74 92 70" />
+              <path d="M 108 70 Q 117 74 126 69" />
 
-              {/* Nasolabial folds (Surcos nasogenianos from nose to mouth corners) */}
-              <path d="M 69 90 Q 64 102 67 114" strokeWidth="1" />
-              <path d="M 91 90 Q 96 102 93 114" strokeWidth="1" />
+              {/* Surcos nasogenianos (de la nariz a comisuras de labios) */}
+              <path d="M 89 82 Q 84 94 87 106" strokeWidth="1" />
+              <path d="M 111 82 Q 116 94 113 106" strokeWidth="1" />
 
-              {/* Marionette lines & Chin groove */}
+              {/* Líneas de marioneta y pliegue mentoniano */}
               {isElderly && (
                 <>
-                  <path d="M 68 116 Q 67 125 70 128" />
-                  <path d="M 92 116 Q 93 125 90 128" />
-                  <path d="M 74 130 Q 80 132 86 130" />
+                  <path d="M 88 108 Q 87 116 90 120" />
+                  <path d="M 112 108 Q 113 116 110 120" />
+                  <path d="M 94 121 Q 100 123 106 121" />
                 </>
               )}
             </g>
 
-            {/* Eyebrows (Realistic feathered brows) */}
+            {/* Cejas Humanas con Pelo Feathered */}
             <g stroke={hairColor} strokeWidth="2.2" strokeLinecap="round">
               {isArrest ? (
-                /* Flat relaxed in cardiac arrest */
+                /* Relajadas en paro cardiorrespiratorio */
                 <>
-                  <path d="M 52 59 Q 63 60 72 61" fill="none" opacity="0.7" />
-                  <path d="M 88 61 Q 97 60 108 59" fill="none" opacity="0.7" />
+                  <path d="M 72 51 Q 83 52 92 53" fill="none" opacity="0.7" />
+                  <path d="M 108 53 Q 117 52 128 51" fill="none" opacity="0.7" />
                 </>
               ) : (
-                /* Angled worried / acute pain brows */
+                /* Anguladas por dolor torácico agudo */
                 <>
-                  <path d="M 52 62 Q 62 55 72 58" fill="none" />
-                  <path d="M 88 58 Q 98 55 108 62" fill="none" />
+                  <path d="M 72 54 Q 82 47 92 50" fill="none" />
+                  <path d="M 108 50 Q 118 47 128 54" fill="none" />
                 </>
               )}
             </g>
 
-            {/* EYES */}
+            {/* OJOS DINÁMICOS & REFLEJO PUPILAR */}
             {eyeLidsClosed ? (
-              /* Sunken closed eyelids with lashes */
+              /* Párpados cerrados hundidos con pestañas (Paro o Parpadeo) */
               <g stroke="#4A342B" strokeWidth="1.8" strokeLinecap="round" fill="none">
-                <path d="M 53 71 Q 63 76 73 71" />
-                <path d="M 87 71 Q 97 76 107 71" />
-                {/* Subtle eyelashes */}
-                <path d="M 57 73 L 56 75 M 63 74 L 63 76 M 69 73 L 70 75" strokeWidth="0.8" />
-                <path d="M 91 73 L 90 75 M 97 74 L 97 76 M 103 73 L 104 75" strokeWidth="0.8" />
+                <path d="M 73 63 Q 83 68 93 63" />
+                <path d="M 107 63 Q 117 68 127 63" />
+                {/* Pestañas sutiles */}
+                <path d="M 77 65 L 76 67 M 83 66 L 83 68 M 89 65 L 90 67" strokeWidth="0.8" />
+                <path d="M 111 65 L 110 67 M 117 66 L 117 68 M 123 65 L 124 67" strokeWidth="0.8" />
               </g>
             ) : (
-              /* High-fidelity open eyes (Sclera + Iris radial + Pupil + Reflection) */
+              /* Ojos abiertos de alta fidelidad (Esclera + Iris con anillo + Pupila + Brillo corneal) */
               <g>
-                {/* Upper eyelid crease */}
-                <path d="M 52 66 Q 63 63 73 66" stroke="#6B442A" strokeWidth="0.8" fill="none" />
-                <path d="M 87 66 Q 97 63 108 66" stroke="#6B442A" strokeWidth="0.8" fill="none" />
+                {/* Pliegue palpebral superior */}
+                <path d="M 72 58 Q 83 55 93 58" stroke="#6B442A" strokeWidth="0.8" fill="none" />
+                <path d="M 107 58 Q 117 55 128 58" stroke="#6B442A" strokeWidth="0.8" fill="none" />
 
-                {/* Sclera with soft anatomical shading */}
-                <ellipse cx="63" cy="71" rx="9.5" ry="5.8" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="0.5" />
-                <ellipse cx="97" cy="71" rx="9.5" ry="5.8" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="0.5" />
+                {/* Esclera blanca anatómica */}
+                <ellipse cx="83" cy="63" rx="9.5" ry="5.8" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="0.5" />
+                <ellipse cx="117" cy="63" rx="9.5" ry="5.8" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="0.5" />
 
-                {/* Caruncle (inner tear duct corner) */}
-                <circle cx="53.5" cy="71.5" r="1.1" fill="#FDA4AF" />
-                <circle cx="106.5" cy="71.5" r="1.1" fill="#FDA4AF" />
+                {/* Lagrimal (Carúncula) */}
+                <circle cx="73.5" cy="63.5" r="1.1" fill="#FDA4AF" />
+                <circle cx="126.5" cy="63.5" r="1.1" fill="#FDA4AF" />
 
-                {/* Iris (Hazel/Brown with limbal ring) */}
-                <circle cx="63" cy="71" r="4.3" fill="#3D291A" stroke="#1C120C" strokeWidth="0.8" />
-                <circle cx="97" cy="71" r="4.3" fill="#3D291A" stroke="#1C120C" strokeWidth="0.8" />
+                {/* Iris (Avellana con anillo limbal) */}
+                <circle cx="83" cy="63" r="4.3" fill="#3D291A" stroke="#1C120C" strokeWidth="0.8" />
+                <circle cx="117" cy="63" r="4.3" fill="#3D291A" stroke="#1C120C" strokeWidth="0.8" />
 
-                {/* Pupil (Constricts with penlight: 3.5mm -> 1.5mm) */}
+                {/* Pupila Dinámica (Se contrae con linterna médica: 3.5mm -> 1.5mm) */}
                 <circle
-                  cx="63"
-                  cy="71"
+                  cx="83"
+                  cy="63"
                   r={isPenlightActive ? 1.3 : 2.5}
                   fill="#020617"
                   className="transition-all duration-200"
                 />
                 <circle
-                  cx="97"
-                  cy="71"
+                  cx="117"
+                  cy="63"
                   r={isPenlightActive ? 1.3 : 2.5}
                   fill="#020617"
                   className="transition-all duration-200"
                 />
 
-                {/* Corneal specular reflection shine */}
-                <circle cx="64.5" cy="69.5" r="1" fill="#FFFFFF" />
-                <circle cx="98.5" cy="69.5" r="1" fill="#FFFFFF" />
+                {/* Reflejo corneal especular brillante */}
+                <circle cx="84.5" cy="61.5" r="1" fill="#FFFFFF" />
+                <circle cx="118.5" cy="61.5" r="1" fill="#FFFFFF" />
 
-                {/* Upper lashes */}
-                <path d="M 53 70 Q 63 65 73 70" stroke="#2C1A14" strokeWidth="1.2" fill="none" />
-                <path d="M 87 70 Q 97 65 107 70" stroke="#2C1A14" strokeWidth="1.2" fill="none" />
+                {/* Pestañas superiores */}
+                <path d="M 73 62 Q 83 57 93 62" stroke="#2C1A14" strokeWidth="1.2" fill="none" />
+                <path d="M 107 62 Q 117 57 127 62" stroke="#2C1A14" strokeWidth="1.2" fill="none" />
               </g>
             )}
 
-            {/* Penlight Light Beam Overlay */}
+            {/* Haz de Luz de Linterna Médica Pupilar */}
             {isPenlightActive && (
               <polygon
-                points="60 0, 100 0, 116 90, 44 90"
+                points="80 0, 120 0, 136 80, 64 80"
                 fill="url(#penlightRay)"
                 pointerEvents="none"
               />
             )}
 
-            {/* Nose (Detailed 3D bridge and nostrils) */}
+            {/* Nariz Humana 3D con Narinas */}
             <path
-              d="M 80 68 L 78 90 C 76 92 73 93 73 95 C 73 97 87 97 87 95 C 87 93 84 92 82 90 Z"
+              d="M 100 60 L 98 82 C 96 84 93 85 93 87 C 93 89 107 89 107 87 C 107 85 104 84 102 82 Z"
               fill="url(#noseShade)"
             />
-            {/* Nostrils */}
-            <ellipse cx="76.5" cy="94" rx="2" ry="1.2" fill="#3A2218" opacity="0.6" />
-            <ellipse cx="83.5" cy="94" rx="2" ry="1.2" fill="#3A2218" opacity="0.6" />
+            {/* Narinas anatómicas sombreadas */}
+            <ellipse cx="96.5" cy="86" rx="2" ry="1.2" fill="#3A2218" opacity="0.6" />
+            <ellipse cx="103.5" cy="86" rx="2" ry="1.2" fill="#3A2218" opacity="0.6" />
 
-            {/* Philtrum groove */}
-            <path d="M 78.5 96 L 78.5 103 M 81.5 96 L 81.5 103" stroke={skinShadow} strokeWidth="0.6" fill="none" opacity="0.5" />
+            {/* Filtro Nasolabial (Philtrum) */}
+            <path d="M 98.5 88 L 98.5 95 M 101.5 88 L 101.5 95" stroke={skinShadow} strokeWidth="0.6" fill="none" opacity="0.5" />
 
-            {/* Mouth & Lips */}
+            {/* Labios y Vía Aérea */}
             {isIntubated ? (
-              /* Endotracheal Tube #8.0 with bite block & fixation tape */
+              /* Tubo Endotraqueal #8.0 con bloque de mordida y fijación */
               <g>
-                <ellipse cx="80" cy="111" rx="8" ry="4.5" fill="#2E1B15" />
-                <rect x="76" y="103" width="8" height="26" rx="2" fill="#F1F5F9" stroke="#0284C7" strokeWidth="1" />
-                <rect x="68" y="109" width="24" height="4" fill="#FEF08A" opacity="0.9" rx="1" />
+                <ellipse cx="100" cy="103" rx="8" ry="4.5" fill="#2E1B15" />
+                <rect x="96" y="95" width="8" height="26" rx="2" fill="#F1F5F9" stroke="#0284C7" strokeWidth="1" />
+                <rect x="88" y="101" width="24" height="4" fill="#FEF08A" opacity="0.9" rx="1" />
               </g>
             ) : (
-              /* Natural lips with Cupid's bow and lip shading */
+              /* Labios naturales con arco de Cupido y cianosis si aplica */
               <g>
-                {/* Upper lip */}
+                {/* Labio superior */}
                 <path
-                  d="M 72 108 C 76 106 78 107 80 108 C 82 107 84 106 88 108 C 85 110 75 110 72 108 Z"
+                  d="M 92 100 C 96 98 98 99 100 100 C 102 99 104 98 108 100 C 105 102 95 102 92 100 Z"
                   fill={lipColor}
                 />
-                {/* Mouth opening line */}
+                {/* Hendidura labial */}
                 <path
-                  d={isArrest ? "M 72 108 Q 80 112 88 108" : "M 72 108 Q 80 106 88 108"}
+                  d={isArrest ? "M 92 100 Q 100 104 108 100" : "M 92 100 Q 100 98 108 100"}
                   stroke="#381E15"
                   strokeWidth="1.2"
                   fill="none"
                 />
-                {/* Lower lip */}
+                {/* Labio inferior */}
                 <path
-                  d="M 73 109 Q 80 114 87 109 Z"
+                  d="M 93 101 Q 100 106 107 101 Z"
                   fill={lipColor}
                   opacity="0.9"
                 />
               </g>
             )}
 
-            {/* Forehead Diaphoresis / Sweat Beads (Clinical ACS marker) */}
+            {/* Sudoración Frontal (Diaforesis por SCA o Shock) */}
             {!isArrest && (currentCase?.type === 'taquicardia' || age >= 50) && (
               <g fill="#BAE6FD" opacity="0.75">
-                <circle cx="68" cy="46" r="1.1" />
-                <circle cx="73" cy="40" r="0.9" />
-                <circle cx="88" cy="42" r="1.1" />
-                <circle cx="94" cy="48" r="0.9" />
-                <circle cx="60" cy="54" r="0.8" />
-                <circle cx="101" cy="53" r="0.8" />
+                <circle cx="88" cy="38" r="1.1" />
+                <circle cx="93" cy="32" r="0.9" />
+                <circle cx="108" cy="34" r="1.1" />
+                <circle cx="114" cy="40" r="0.9" />
+                <circle cx="80" cy="46" r="0.8" />
+                <circle cx="121" cy="45" r="0.8" />
               </g>
             )}
 
-            {/* Oxygen Gear if active */}
+            {/* Dispositivos de Oxigenoterapia */}
             {hasO2Mask && (
               <g>
                 <polygon
-                  points="65 80, 95 80, 98 122, 62 122"
+                  points="85 72, 115 72, 118 114, 82 114"
                   fill="#38BDF8"
                   opacity="0.32"
                   stroke="#0284C7"
                   strokeWidth="1"
                   rx="4"
                 />
-                <path d="M 40 92 L 65 98 M 95 98 L 120 92" stroke="#10B981" strokeWidth="1.2" />
+                <path d="M 60 84 L 85 90 M 115 90 L 140 84" stroke="#10B981" strokeWidth="1.2" />
               </g>
             )}
 
             {hasCannula && (
               <g stroke="#38BDF8" strokeWidth="1.4" fill="none">
-                <path d="M 40 93 L 75 93" />
-                <path d="M 85 93 L 120 93" />
-                <circle cx="76.5" cy="92" r="1.3" fill="#38BDF8" />
-                <circle cx="83.5" cy="92" r="1.3" fill="#38BDF8" />
+                <path d="M 60 85 L 95 85" />
+                <path d="M 105 85 L 140 85" />
+                <circle cx="96.5" cy="84" r="1.3" fill="#38BDF8" />
+                <circle cx="103.5" cy="84" r="1.3" fill="#38BDF8" />
               </g>
             )}
           </svg>
