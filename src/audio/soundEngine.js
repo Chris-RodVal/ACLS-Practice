@@ -17,15 +17,15 @@ class ClinicalSoundEngine {
     this.selectedFemaleVoice = null;
 
     // ElevenLabs Hyperrealistic Cloud Voice Settings
-    const DEFAULT_KEY = 'be8638f37a9a9d308ed67ccb06cb8cb3db2358c1ddddb1da6fa01bbe11d11775';
+    const DEFAULT_KEY = 'sk_8e98981a58c62ea16e33b6a54aa126503a0b62a6d431c679';
     this.elevenLabsKey = DEFAULT_KEY;
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('acls_elevenlabs_key', DEFAULT_KEY);
     }
     this.elevenLabsVoiceIds = {
       male: 'ErXwobaYiN019PkySvjV',   // Antoni - Natural, warm, realistic Spanish/multilingual male
-      female: '21m00Tcm4TlvDq8ikWAM', // Rachel - Expressive, human Spanish/multilingual female
-      system: 'onwK4e9ZLuTAKqWW03F9'  // Daniel - Deep, calm, authoritative proctor
+      female: 'EXAVITQu4vr4xnSDxMaL', // Sarah - Expressive, human Spanish/multilingual female
+      system: 'JBFqnCBsd6RMkjVDRZzb'  // George - Warm, authoritative proctor
     };
     this.audioCache = new Map();
     this.currentAudio = null;
