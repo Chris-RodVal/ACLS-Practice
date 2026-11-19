@@ -14,7 +14,7 @@ import CaseSelectorModal from './components/CaseSelectorModal';
 import HytModal from './components/HytModal';
 import RhythmDiagnosisModal from './components/RhythmDiagnosisModal';
 import ClinicalExamModal from './components/ClinicalExamModal';
-import { BookOpen, Stethoscope, RefreshCw, Award, Volume2, VolumeX, ShieldAlert, HeartPulse, Dices, Key, Bot } from 'lucide-react';
+import { BookOpen, Stethoscope, RefreshCw, Award, Volume2, VolumeX, ShieldAlert, HeartPulse, Dices, Key, Bot, Menu, ChevronDown, ChevronUp, X as CloseIcon } from 'lucide-react';
 
 export default function App() {
   // 1. Case & Phase state
@@ -96,6 +96,7 @@ export default function App() {
   const DEFAULT_GEMINI_KEY = 'AIzaSyDnALQuCp-KxRsiVpjyPReGXTwDNroh8Go';
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('acls_gemini_api_key') || DEFAULT_GEMINI_KEY);
   const [isApiKeyPromptOpen, setIsApiKeyPromptOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Barra de menú superior colapsable para optimizar espacio vertical
 
   // 7. Modals
   const [is12LeadOpen, setIs12LeadOpen] = useState(false);
@@ -1388,87 +1389,122 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#070B14] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30">
       
-      {/* Top Navbar */}
-      <header className="bg-[#0A101E] border-b border-slate-800 px-4 py-2.5 flex items-center justify-between select-none">
-        <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-tr from-cyan-600 to-blue-600 text-white p-2 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center justify-center">
-            <HeartPulse className="w-5 h-5 text-white animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-black text-base tracking-wider bg-gradient-to-r from-cyan-400 via-teal-300 to-blue-400 bg-clip-text text-transparent">
-                VITALS ACLS Simulator
+      {/* Top Navbar Colapsable */}
+      <header className="bg-[#0A101E] border-b border-slate-800/90 select-none transition-all">
+        {/* Barra Superior Compacta (Siempre Visible, ahorro máximo de espacio vertical) */}
+        <div className="px-3 py-1.5 flex items-center justify-between gap-2 min-h-[36px]">
+          <div className="flex items-center gap-2">
+            <div className="bg-gradient-to-tr from-cyan-600 to-blue-600 text-white p-1 rounded-lg shadow-sm flex items-center justify-center">
+              <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono font-bold text-xs sm:text-sm tracking-wide bg-gradient-to-r from-cyan-400 via-teal-300 to-blue-400 bg-clip-text text-transparent">
+                VITALS ACLS
               </span>
-              <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                SIMULADOR CLÍNICO
+              <span className="hidden sm:inline bg-cyan-950/70 text-cyan-300 border border-cyan-800/50 text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold">
+                SIMULADOR
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono hidden md:inline truncate max-w-[200px]">
+                | {currentCase.title}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 font-mono">
-              Entrenamiento de Taqui/Bradiarritmias &gt; PCR &gt; RCE &gt; Cuidados Posparo
-            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Pauta de Cotejo y Nota EXCLUSIVAMENTE al final del caso */}
+            {(isSimulationCompleted || phase === 'dead') && (
+              <button
+                onClick={handleOpenAiEvaluation}
+                className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-md transition border animate-pulse ${
+                  phase === 'dead'
+                    ? 'bg-rose-900 hover:bg-rose-800 text-rose-100 border-rose-500'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-400/30'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>{phase === 'dead' ? '💀 Ver Pauta' : '🏆 Pauta & Nota'}</span>
+                {aiScorePreview && (
+                  <span className="bg-slate-900/80 px-1 py-0.2 rounded text-[9px] text-yellow-300">
+                    {aiScorePreview}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Botón para desplegar / colapsar el menú de navegación */}
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className={`px-2.5 py-1 rounded text-xs font-mono font-semibold flex items-center gap-1.5 border transition ${
+                isMenuOpen
+                  ? 'bg-cyan-950 text-cyan-300 border-cyan-600 shadow-sm'
+                  : 'bg-[#131D31] hover:bg-slate-800 text-slate-300 border-slate-700'
+              }`}
+              title="Mostrar/Ocultar barra de herramientas y biblioteca de casos"
+            >
+              <Menu className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-[11px]">{isMenuOpen ? 'Ocultar Menú' : 'Menú Opciones'}</span>
+              {isMenuOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
           </div>
         </div>
 
-        {/* Global Navigation actions */}
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => {
-              const randomized = getRandomCase();
-              handleSelectCase(randomized);
-            }}
-            className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-mono text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-md shadow-amber-600/30 transition border border-amber-400/40"
-            title="Sortear un caso ACLS aleatorio con variaciones fisiológicas"
-          >
-            <Dices className="w-4 h-4 animate-spin-hover" />
-            Caso Aleatorio
-          </button>
+        {/* Panel Colapsable de Herramientas y Casos (Sólo visible si el usuario lo selecciona) */}
+        {isMenuOpen && (
+          <div className="bg-[#0D1527] border-t border-slate-800/80 px-3 py-2 flex flex-wrap items-center justify-between gap-2 animate-in slide-in-from-top-1 duration-150">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  const randomized = getRandomCase();
+                  handleSelectCase(randomized);
+                }}
+                className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-mono text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-md shadow-amber-600/30 transition border border-amber-400/40"
+                title="Sortear un caso ACLS aleatorio con variaciones fisiológicas"
+              >
+                <Dices className="w-3.5 h-3.5 animate-spin-hover" />
+                Caso Aleatorio
+              </button>
 
-          <button
-            onClick={() => setIsCaseSelectorOpen(true)}
-            className="bg-[#131D31] hover:bg-slate-800 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition shadow"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
-            Biblioteca ({ACLS_CASES.length})
-          </button>
+              <button
+                onClick={() => setIsCaseSelectorOpen(true)}
+                className="bg-[#131D31] hover:bg-slate-800 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition shadow"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+                Biblioteca ({ACLS_CASES.length})
+              </button>
 
-          <button
-            onClick={() => resetSimulationState(currentCase)}
-            className="bg-[#131D31] hover:bg-slate-800 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition shadow"
-            title="Reiniciar el caso actual"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-            Reiniciar
-          </button>
+              <button
+                onClick={() => resetSimulationState(currentCase)}
+                className="bg-[#131D31] hover:bg-slate-800 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition shadow"
+                title="Reiniciar el caso actual"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                Reiniciar
+              </button>
 
-          <button
-            onClick={() => setIsApiKeyPromptOpen(true)}
-            className="bg-[#131D31] hover:bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition shadow"
-            title="Configurar clave API de Google Gemini (Opcional, incluye evaluador local 100% gratis)"
-          >
-            <Key className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">API IA</span>
-          </button>
+              <button
+                onClick={() => setIsApiKeyPromptOpen(true)}
+                className="bg-[#131D31] hover:bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition shadow"
+                title="Configurar clave API de Google Gemini (Opcional, incluye evaluador local 100% gratis)"
+              >
+                <Key className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="inline">API IA</span>
+              </button>
+            </div>
 
-          {/* La Pauta de Cotejo y Nota se muestra EXCLUSIVAMENTE al final del caso (RCE exitoso o fallecimiento) */}
-          {(isSimulationCompleted || phase === 'dead') && (
-            <button
-              onClick={handleOpenAiEvaluation}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow-md transition border animate-pulse ${
-                phase === 'dead'
-                  ? 'bg-rose-900 hover:bg-rose-800 text-rose-100 border-rose-500 shadow-rose-900/40'
-                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-400/30 shadow-emerald-600/30'
-              }`}
-            >
-              <Award className="w-4 h-4" />
-              <span>{phase === 'dead' ? '💀 Ver Pauta (Caso Finalizado)' : '🏆 Pauta de Cotejo y Nota'}</span>
-              {aiScorePreview && (
-                <span className="bg-slate-900/80 px-1.5 py-0.5 rounded text-[10px] text-yellow-300">
-                  {aiScorePreview}
-                </span>
-              )}
-            </button>
-          )}
-        </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-400 font-mono hidden md:inline">
+                Taqui/Bradiarritmias &gt; PCR &gt; RCE &gt; Cuidados Posparo
+              </span>
+              <button
+                onClick={() => setIsMenuOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition"
+                title="Ocultar menú para mayor espacio"
+              >
+                <CloseIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Patient Information & Clinical Situation Banner */}
