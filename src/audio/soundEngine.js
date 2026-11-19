@@ -57,15 +57,18 @@ class ClinicalSoundEngine {
       const name = (v.name || '').toLowerCase();
       const lang = (v.lang || '').toLowerCase();
 
-      // Highest tier: Natural / Neural / Enhanced / Premium voices
-      if (name.includes('natural') || name.includes('neural')) score += 100;
-      if (name.includes('enhanced') || name.includes('premium')) score += 80;
-      if (name.includes('google')) score += 70; // Google español is exceptionally fluid and clear
-      if (name.includes('online')) score += 60;
-      if (name.includes('siri')) score += 50;
-      if (name.includes('alvaro') || name.includes('álvaro') || name.includes('elvira') || name.includes('jorge') || name.includes('monica') || name.includes('paulina')) score += 40;
+      // Penalize low-quality / robotic compact voices
+      if (name.includes('compact') || name.includes('sintetizador') || name.includes('espeak')) score -= 150;
 
-      // Regional preferences (Chile, Latin America, Spain)
+      // Highest tier: Natural / Neural / Enhanced / Premium voices
+      if (name.includes('natural') || name.includes('neural')) score += 120;
+      if (name.includes('google')) score += 110; // Google español in Chrome is fluid and human
+      if (name.includes('enhanced') || name.includes('premium')) score += 90;
+      if (name.includes('online')) score += 80;
+      if (name.includes('siri')) score += 70;
+      if (name.includes('alvaro') || name.includes('álvaro') || name.includes('elvira') || name.includes('jorge') || name.includes('paulina')) score += 40;
+
+      // Regional preferences (Latin America, Chile, Mexico, Spain)
       if (lang.includes('cl') || lang.includes('419') || lang.includes('mx') || lang.includes('es')) score += 20;
       return score;
     };
@@ -187,6 +190,12 @@ class ClinicalSoundEngine {
   async speakViaElevenLabs(cleanText, role = 'system', gender = 'M') {
     if (!this.elevenLabsKey || !cleanText) return false;
 
+    // ElevenLabs requires keys beginning with 'sk_'
+    if (!this.elevenLabsKey.startsWith('sk_')) {
+      console.warn('ElevenLabs API Key no válida: las claves de ElevenLabs deben comenzar con "sk_". La clave actual parece ser un Key ID.');
+      return false;
+    }
+
     const isFemale = gender === 'F' || gender === 'femenino' || gender === 'Mujer';
     const voiceId = role === 'system'
       ? this.elevenLabsVoiceIds.system
@@ -240,8 +249,8 @@ class ClinicalSoundEngine {
     const cleanText = this.normalizeMedicalSpokenText(text);
     if (!cleanText) return;
 
-    // 1. Try ElevenLabs Hyperrealistic Cloud Voice if API key configured
-    if (this.elevenLabsKey) {
+    // 1. Try ElevenLabs Hyperrealistic Cloud Voice if API key configured (must start with sk_)
+    if (this.elevenLabsKey && this.elevenLabsKey.startsWith('sk_')) {
       const success = await this.speakViaElevenLabs(cleanText, role, gender);
       if (success) return;
     }
@@ -250,7 +259,12 @@ class ClinicalSoundEngine {
     if (!('speechSynthesis' in window)) return;
 
     try {
-      if (!this.voices || this.voices.length === 0) {
+      // Re-query voices to avoid Chrome empty array on cold start
+      const freshVoices = window.speechSynthesis.getVoices();
+      if (freshVoices && freshVoices.length > 0) {
+        this.voices = freshVoices;
+        this.categorizeVoices();
+      } else if (!this.voices || this.voices.length === 0) {
         this.initVoices();
       }
 
