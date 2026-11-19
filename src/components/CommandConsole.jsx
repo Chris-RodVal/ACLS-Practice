@@ -49,6 +49,7 @@ export default function CommandConsole({
   const [showAtropineMenu, setShowAtropineMenu] = useState(false);
   const [showAmiodaroneMenu, setShowAmiodaroneMenu] = useState(false);
   const [showOtherDrugsMenu, setShowOtherDrugsMenu] = useState(false);
+  const [actionTab, setActionTab] = useState('all'); // 'all' | 'cpr' | 'drugs' | 'exam'
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -95,25 +96,31 @@ export default function CommandConsole({
         </div>
       )}
 
-      {/* Banner de Simulación Completada (Todos los pasos del algoritmo ACLS realizados) */}
-      {isSimulationCompleted && (
-        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-3 flex flex-wrap items-center justify-between text-white font-mono shadow-xl border-b border-emerald-400/50 animate-pulse">
+      {/* Banner de Caso Finalizado (Completado con Éxito o Paciente Fallecido) */}
+      {(isSimulationCompleted || phase === 'dead') && (
+        <div className={`p-3 flex flex-wrap items-center justify-between text-white font-mono shadow-xl border-b animate-pulse ${
+          phase === 'dead'
+            ? 'bg-gradient-to-r from-rose-950 via-slate-900 to-rose-900 border-rose-500/60'
+            : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 border-emerald-400/50'
+        }`}>
           <div className="flex items-center gap-2.5">
             <Award className="w-6 h-6 text-yellow-300 fill-current shrink-0" />
             <div>
               <div className="text-sm font-bold flex items-center gap-1.5">
-                🎉 ¡SIMULACIÓN ACLS COMPLETADA CON ÉXITO!
+                {phase === 'dead' ? '💀 SIMULACIÓN FINALIZADA — PACIENTE FALLECIDO' : '🎉 ¡SIMULACIÓN ACLS COMPLETADA CON ÉXITO!'}
               </div>
-              <div className="text-[11px] text-emerald-100">
-                Has cumplido todos los pasos del algoritmo (Arritmia Inicial ➔ PCR ➔ RCE ➔ Cuidados Posparo: PA, ECG 12D, MET y Derivación).
+              <div className="text-[11px] text-slate-200">
+                {phase === 'dead'
+                  ? 'La reanimación no tuvo éxito debido a errores críticos o paro irreversible. Revisa la pauta de cotejo para retroalimentación.'
+                  : 'Has cumplido todos los pasos del algoritmo (Arritmia Inicial ➔ PCR ➔ RCE ➔ Cuidados Posparo: PA, ECG 12D, MET y Derivación).'}
               </div>
             </div>
           </div>
           <button
             onClick={onOpenAiEvaluation}
-            className="mt-2 sm:mt-0 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-300 font-bold rounded-lg border border-emerald-400 shadow transition flex items-center gap-2 text-xs"
+            className="mt-2 sm:mt-0 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-yellow-300 font-bold rounded-lg border border-yellow-400 shadow transition flex items-center gap-2 text-xs"
           >
-            <Award className="w-4 h-4 text-emerald-400" />
+            <Award className="w-4 h-4 text-yellow-400" />
             <span>VER PAUTA OFICIAL Y CALIFICACIÓN (1.0 - 7.0)</span>
           </button>
         </div>
@@ -281,11 +288,57 @@ export default function CommandConsole({
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            Acciones Críticas ACLS — Control Clínico Directo
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              Acciones Clínicas ACLS
+            </span>
+            {/* Filtro de Categorías sin quitar botones */}
+            <div className="flex items-center gap-1 bg-[#070C16] p-0.5 rounded-lg border border-slate-800 text-[10px] font-mono">
+              <button
+                onClick={() => setActionTab('all')}
+                className={`px-2 py-0.5 rounded transition ${
+                  actionTab === 'all'
+                    ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Todas (15)
+              </button>
+              <button
+                onClick={() => setActionTab('cpr')}
+                className={`px-2 py-0.5 rounded transition ${
+                  actionTab === 'cpr'
+                    ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🫀 RCP & Vía Aérea (6)
+              </button>
+              <button
+                onClick={() => setActionTab('drugs')}
+                className={`px-2 py-0.5 rounded transition ${
+                  actionTab === 'drugs'
+                    ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                💉 Fármacos (6)
+              </button>
+              <button
+                onClick={() => setActionTab('exam')}
+                className={`px-2 py-0.5 rounded transition ${
+                  actionTab === 'exam'
+                    ? 'bg-purple-500/20 text-purple-300 font-bold border border-purple-500/40 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                ⚡ Diagnóstico & Causas (3)
+              </button>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
             {infusedVolumeMl > 0 && (
               <span className="text-[10px] text-sky-300 bg-sky-950/80 px-2 py-0.5 rounded border border-sky-700/50 font-mono">
@@ -299,275 +352,282 @@ export default function CommandConsole({
         </div>
 
         {/* Fila 1: Liderazgo, Evaluación de Pulso, RCP, Avance rápido y Vía Aérea */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5">
-          
-          {/* 1. Asignar Funciones del Líder (1 solo botón) */}
-          <button
-            onClick={onAssignLeaderRoles}
-            className={`p-2 rounded-lg active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm border ${
-              hasAssignedRoles
-                ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-200'
-                : 'bg-indigo-950/70 hover:bg-indigo-900 border-indigo-700/60 text-indigo-200'
-            }`}
-            title="1-clic: Asignar todas las funciones del equipo de reanimación (Compresor, Vía aérea, Monitor, Fármacos)"
-          >
-            <UserCheck className={`w-4 h-4 ${hasAssignedRoles ? 'text-emerald-400' : 'text-indigo-400'}`} />
-            <span className="text-xs font-bold font-mono">
-              {hasAssignedRoles ? 'Roles Asignados ✓' : 'Asignar Funciones'}
-            </span>
-            <span className="text-[9px] text-indigo-300/80 font-mono">Líder del Equipo</span>
-          </button>
-
-          {/* 2. Evaluar SOLO PULSO */}
-          <button
-            onClick={onCheckPulseOnly}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition flex flex-col items-center justify-center text-center gap-0.5 group shadow-sm"
-            title="Evaluar presencia de pulso carotídeo en <10s sin revelar ritmo"
-          >
-            <Activity className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition" />
-            <span className="text-xs font-bold font-mono">Chequear Pulso</span>
-            <span className="text-[9px] text-emerald-400/90 font-mono">Solo Pulso (&lt;10s)</span>
-          </button>
-
-          {/* 3. Iniciar o Detener Compresiones */}
-          {!isCprActive ? (
+        {(actionTab === 'all' || actionTab === 'cpr') && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5">
+            
+            {/* 1. Asignar Funciones del Líder (1 solo botón) */}
             <button
-              onClick={onStartCpr}
-              className="p-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500 text-emerald-200 active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-              title="Iniciar compresiones torácicas a 110 cpm"
-            >
-              <Play className="w-4 h-4 text-emerald-400 fill-current" />
-              <span className="text-xs font-bold font-mono">Iniciar RCP</span>
-              <span className="text-[9px] text-emerald-400/90 font-mono">110 cpm (Metrónomo)</span>
-            </button>
-          ) : (
-            <button
-              onClick={onStopCpr}
-              className="p-2 rounded-lg bg-rose-950/90 hover:bg-rose-900 border border-rose-500 text-rose-200 active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm animate-pulse"
-              title="Pausar compresiones torácicas"
-            >
-              <Square className="w-4 h-4 text-rose-400 fill-current" />
-              <span className="text-xs font-bold font-mono">Pausar RCP</span>
-              <span className="text-[9px] text-rose-300 font-mono">Detener Masaje</span>
-            </button>
-          )}
-
-          {/* 4. Adelantar 30s de RCP (Botón directo) */}
-          <button
-            onClick={onAdvanceCprTime}
-            className="p-2 rounded-lg bg-blue-950/70 hover:bg-blue-900/90 active:scale-95 text-blue-200 border border-blue-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Avanzar 30 segundos del ciclo de RCP para no esperar en tiempo real"
-          >
-            <FastForward className="w-4 h-4 text-blue-400" />
-            <span className="text-xs font-bold font-mono">Adelantar +30s</span>
-            <span className="text-[9px] text-blue-300/90 font-mono">Avanzar Ciclo RCP</span>
-          </button>
-
-          {/* 5. Intubación Endotraqueal (TET) - 30s de pausa realista solo en paro */}
-          <button
-            onClick={onStartIntubation}
-            disabled={isIntubating}
-            className="p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 disabled:opacity-50 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title={(isCprActive || phase === 'arrest') ? "Intubación orotraqueal: pausa de compresiones de 30 segundos" : "Intubación orotraqueal en secuencia rápida (paciente con pulso, sin pausa de compresiones)"}
-          >
-            <Stethoscope className="w-4 h-4 text-teal-400" />
-            <span className="text-xs font-bold font-mono">Intubar TET</span>
-            <span className="text-[9px] text-teal-300/90 font-mono">
-              {(isCprActive || phase === 'arrest') ? 'Pausa 30s RCP' : 'Secuencia Rápida'}
-            </span>
-          </button>
-
-          {/* 6. Declarar Ritmo */}
-          <button
-            onClick={onOpenRhythmDiagnosis}
-            className="p-2 rounded-lg bg-purple-950/70 hover:bg-purple-900/90 active:scale-95 text-purple-200 border border-purple-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Declarar el ritmo que estás viendo en el monitor"
-          >
-            <Activity className="w-4 h-4 text-purple-400" />
-            <span className="text-xs font-bold font-mono">Declarar Ritmo</span>
-            <span className="text-[9px] text-purple-300/90 font-mono">Diagnóstico</span>
-          </button>
-
-        </div>
-
-        {/* Fila 2: Terapéutica (Fluidos ATLS, Oxígeno, Fármacos con dosis ACLS, Desfibrilador, POCUS, Causas 5H/5T, IA Evaluadora) */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-10 gap-1.5 pt-1">
-          
-          {/* 1. Fluidos IV ATLS con selector de tipo (Ringer Lactato vs SF) y volumen */}
-          <div>
-            <button
-              onClick={() => {
-                setShowFluidPicker(true);
-                setShowO2Picker(false);
-                setShowAdrenalineMenu(false);
-                setShowAtropineMenu(false);
-                setShowAmiodaroneMenu(false);
-                setShowOtherDrugsMenu(false);
-              }}
-              className="w-full p-2 rounded-lg bg-sky-950/70 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-              title="Administrar cristaloides IV: Selección entre Ringer Lactato (ATLS) y Suero Fisiológico 0.9%"
-            >
-              <Droplets className="w-4 h-4 text-sky-400" />
-              <span className="text-xs font-bold font-mono">Fluidos IV</span>
-              <span className="text-[9px] text-sky-300/80 font-mono">
-                {selectedFluidType === 'ringer' ? 'Ringer (ATLS)' : 'SF 0.9%'} ▼
-              </span>
-            </button>
-          </div>
-
-          {/* 2. Administrar Oxígeno con Selector de Dispositivo */}
-          <div>
-            <button
-              onClick={() => {
-                setShowO2Picker(true);
-                setShowFluidPicker(false);
-                setShowAdrenalineMenu(false);
-                setShowAtropineMenu(false);
-                setShowAmiodaroneMenu(false);
-                setShowOtherDrugsMenu(false);
-              }}
-              className={`w-full p-2 rounded-lg active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm border ${
-                oxygenDevice !== 'none'
-                  ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200'
-                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+              onClick={onAssignLeaderRoles}
+              className={`p-2 rounded-lg active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm border ${
+                hasAssignedRoles
+                  ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-200'
+                  : 'bg-indigo-950/70 hover:bg-indigo-900 border-indigo-700/60 text-indigo-200'
               }`}
-              title="Cambiar dispositivo de oxigenoterapia (Cánula, Venturi, Reservorio 15L, BVM)"
+              title="1-clic: Asignar todas las funciones del equipo de reanimación (Compresor, Vía aérea, Monitor, Fármacos)"
             >
-              <Wind className={`w-4 h-4 ${oxygenDevice !== 'none' ? 'text-cyan-400' : 'text-slate-400'}`} />
+              <UserCheck className={`w-4 h-4 ${hasAssignedRoles ? 'text-emerald-400' : 'text-indigo-400'}`} />
               <span className="text-xs font-bold font-mono">
-                {oxygenDevice === 'none' ? 'Oxígeno (OFF)' : 'Oxígeno (ON)'}
+                {hasAssignedRoles ? 'Roles Asignados ✓' : 'Asignar Funciones'}
               </span>
-              <span className="text-[9px] text-slate-400 font-mono">Dispositivo ▼</span>
+              <span className="text-[9px] text-indigo-300/80 font-mono">Líder del Equipo</span>
             </button>
-          </div>
 
-          {/* 3. Adrenalina con Selector de Dosis e Infusión */}
-          <div>
+            {/* 2. Evaluar SOLO PULSO */}
             <button
-              onClick={() => {
-                setShowAdrenalineMenu(true);
-                setShowFluidPicker(false);
-                setShowO2Picker(false);
-                setShowAtropineMenu(false);
-                setShowAmiodaroneMenu(false);
-                setShowOtherDrugsMenu(false);
-              }}
-              className="w-full p-2 rounded-lg bg-amber-950/70 hover:bg-amber-900/90 active:scale-95 text-amber-200 border border-amber-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-              title="Adrenalina: Seleccionar bolo (1mg estándar, 0.5mg, 2mg) o infusión continua (2-10 mcg/min)"
+              onClick={onCheckPulseOnly}
+              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition flex flex-col items-center justify-center text-center gap-0.5 group shadow-sm"
+              title="Evaluar presencia de pulso carotídeo en <10s sin revelar ritmo"
             >
-              <Syringe className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-bold font-mono">Adrenalina</span>
-              <span className="text-[9px] text-amber-400/80 font-mono">Dosis ▼</span>
+              <Activity className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition" />
+              <span className="text-xs font-bold font-mono">Chequear Pulso</span>
+              <span className="text-[9px] text-emerald-400/90 font-mono">Solo Pulso (&lt;10s)</span>
             </button>
-          </div>
 
-          {/* 4. Atropina con Selector de Dosis AHA 2020 */}
-          <div>
+            {/* 3. Iniciar o Detener Compresiones */}
+            {!isCprActive ? (
+              <button
+                onClick={onStartCpr}
+                className="p-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500 text-emerald-200 active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                title="Iniciar compresiones torácicas a 110 cpm"
+              >
+                <Play className="w-4 h-4 text-emerald-400 fill-current" />
+                <span className="text-xs font-bold font-mono">Iniciar RCP</span>
+                <span className="text-[9px] text-emerald-400/90 font-mono">110 cpm (Metrónomo)</span>
+              </button>
+            ) : (
+              <button
+                onClick={onStopCpr}
+                className="p-2 rounded-lg bg-rose-950/90 hover:bg-rose-900 border border-rose-500 text-rose-200 active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm animate-pulse"
+                title="Pausar compresiones torácicas"
+              >
+                <Square className="w-4 h-4 text-rose-400 fill-current" />
+                <span className="text-xs font-bold font-mono">Pausar RCP</span>
+                <span className="text-[9px] text-rose-300 font-mono">Detener Masaje</span>
+              </button>
+            )}
+
+            {/* 4. Adelantar 30s de RCP (Botón directo) */}
             <button
-              onClick={() => {
-                setShowAtropineMenu(true);
-                setShowFluidPicker(false);
-                setShowO2Picker(false);
-                setShowAdrenalineMenu(false);
-                setShowAmiodaroneMenu(false);
-                setShowOtherDrugsMenu(false);
-              }}
-              className="w-full p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-              title="Atropina: Primera línea en bradicardia sintomática (AHA 2020 recomienda dosis inicial de 1mg)"
+              onClick={onAdvanceCprTime}
+              className="p-2 rounded-lg bg-blue-950/70 hover:bg-blue-900/90 active:scale-95 text-blue-200 border border-blue-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+              title="Avanzar 30 segundos del ciclo de RCP para no esperar en tiempo real"
             >
-              <Syringe className="w-4 h-4 text-teal-400" />
-              <span className="text-xs font-bold font-mono">Atropina</span>
-              <span className="text-[9px] text-teal-400/80 font-mono">Dosis AHA ▼</span>
+              <FastForward className="w-4 h-4 text-blue-400" />
+              <span className="text-xs font-bold font-mono">Adelantar +30s</span>
+              <span className="text-[9px] text-blue-300/90 font-mono">Avanzar Ciclo RCP</span>
             </button>
-          </div>
 
-          {/* 5. Amiodarona con Selector de Dosis ACLS */}
-          <div>
+            {/* 5. Intubación Endotraqueal (TET) - 30s de pausa realista solo en paro */}
             <button
-              onClick={() => {
-                setShowAmiodaroneMenu(true);
-                setShowFluidPicker(false);
-                setShowO2Picker(false);
-                setShowAdrenalineMenu(false);
-                setShowAtropineMenu(false);
-                setShowOtherDrugsMenu(false);
-              }}
-              className="w-full p-2 rounded-lg bg-purple-950/70 hover:bg-purple-900/90 active:scale-95 text-purple-200 border border-purple-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-              title="Amiodarona: 300mg tras 3er choque, 150mg tras 5° choque, o infusión"
+              onClick={onStartIntubation}
+              disabled={isIntubating}
+              className="p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 disabled:opacity-50 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+              title={(isCprActive || phase === 'arrest') ? "Intubación orotraqueal: pausa de compresiones de 30 segundos" : "Intubación orotraqueal en secuencia rápida (paciente con pulso, sin pausa de compresiones)"}
             >
-              <Syringe className="w-4 h-4 text-purple-400" />
-              <span className="text-xs font-bold font-mono">Amiodarona</span>
-              <span className="text-[9px] text-purple-400/80 font-mono">Dosis ▼</span>
+              <Stethoscope className="w-4 h-4 text-teal-400" />
+              <span className="text-xs font-bold font-mono">Intubar TET</span>
+              <span className="text-[9px] text-teal-300/90 font-mono">
+                {(isCprActive || phase === 'arrest') ? 'Pausa 30s RCP' : 'Secuencia Rápida'}
+              </span>
             </button>
-          </div>
 
-          {/* 6. Otros Fármacos ACLS (Adenosina, Magnesio, Noradrenalina, Calcio, Bicarbonato) */}
-          <div>
+            {/* 6. Declarar Ritmo */}
             <button
-              onClick={() => {
-                setShowOtherDrugsMenu(true);
-                setShowFluidPicker(false);
-                setShowO2Picker(false);
-                setShowAdrenalineMenu(false);
-                setShowAtropineMenu(false);
-                setShowAmiodaroneMenu(false);
-              }}
-              className="w-full p-2 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/90 active:scale-95 text-indigo-200 border border-indigo-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-              title="Otros fármacos: Adenosina (TSV), Sulfato de Magnesio (Torsades), Noradrenalina, Calcio, Bicarbonato"
+              onClick={onOpenRhythmDiagnosis}
+              className="p-2 rounded-lg bg-purple-950/70 hover:bg-purple-900/90 active:scale-95 text-purple-200 border border-purple-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+              title="Declarar el ritmo que estás viendo en el monitor"
             >
-              <Syringe className="w-4 h-4 text-indigo-400" />
-              <span className="text-xs font-bold font-mono">Otros Fármacos</span>
-              <span className="text-[9px] text-indigo-400/80 font-mono">ACLS / H y T ▼</span>
+              <Activity className="w-4 h-4 text-purple-400" />
+              <span className="text-xs font-bold font-mono">Declarar Ritmo</span>
+              <span className="text-[9px] text-purple-300/90 font-mono">Diagnóstico</span>
             </button>
+
           </div>
+        )}
 
-          {/* 7. Desfibrilar 200J */}
-          <button
-            onClick={() => handleAction('Despejar área y aplicar descarga de desfibrilación 200J')}
-            className="p-2 rounded-lg bg-red-950/70 hover:bg-red-900/90 active:scale-95 text-red-200 border border-red-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Para FV o TV sin pulso: Descarga de 200J bifásica sincronizada o asincrónica"
-          >
-            <Zap className="w-4 h-4 text-red-400" />
-            <span className="text-xs font-bold font-mono">Desfibrilar</span>
-            <span className="text-[9px] text-red-400/80 font-mono">200J (FV/TVSP)</span>
-          </button>
+        {/* Fila 2: Terapéutica y Diagnóstico */}
+        {(actionTab === 'all' || actionTab === 'drugs' || actionTab === 'exam') && (
+          <div className={
+            actionTab === 'drugs'
+              ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5 pt-1"
+              : actionTab === 'exam'
+              ? "grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1"
+              : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-1.5 pt-1"
+          }>
+            
+            {/* BLOQUE FÁRMACOS (1 a 6) */}
+            {(actionTab === 'all' || actionTab === 'drugs') && (
+              <>
+                {/* 1. Fluidos IV ATLS con selector de tipo (Ringer Lactato vs SF) y volumen */}
+                <div>
+                  <button
+                    onClick={() => {
+                      setShowFluidPicker(true);
+                      setShowO2Picker(false);
+                      setShowAdrenalineMenu(false);
+                      setShowAtropineMenu(false);
+                      setShowAmiodaroneMenu(false);
+                      setShowOtherDrugsMenu(false);
+                    }}
+                    className="w-full p-2 rounded-lg bg-sky-950/70 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                    title="Administrar cristaloides IV: Selección entre Ringer Lactato (ATLS) y Suero Fisiológico 0.9%"
+                  >
+                    <Droplets className="w-4 h-4 text-sky-400" />
+                    <span className="text-xs font-bold font-mono">Fluidos IV</span>
+                    <span className="text-[9px] text-sky-300/80 font-mono">
+                      {selectedFluidType === 'ringer' ? 'Ringer (ATLS)' : 'SF 0.9%'} ▼
+                    </span>
+                  </button>
+                </div>
 
-          {/* 8. Examen Físico, POCUS y Laboratorio (Claves 5H y 5T) */}
-          <button
-            onClick={onOpenClinicalExam}
-            className="p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Ver examen físico, ultrasonido POCUS en paro y gases/laboratorio para identificar causas reversibles"
-          >
-            <Stethoscope className="w-4 h-4 text-teal-400" />
-            <span className="text-xs font-bold font-mono">POCUS y Labs</span>
-            <span className="text-[9px] text-teal-300/80 font-mono">Hallazgos Clave</span>
-          </button>
+                {/* 2. Administrar Oxígeno con Selector de Dispositivo */}
+                <div>
+                  <button
+                    onClick={() => {
+                      setShowO2Picker(true);
+                      setShowFluidPicker(false);
+                      setShowAdrenalineMenu(false);
+                      setShowAtropineMenu(false);
+                      setShowAmiodaroneMenu(false);
+                      setShowOtherDrugsMenu(false);
+                    }}
+                    className={`w-full p-2 rounded-lg active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm border ${
+                      oxygenDevice !== 'none'
+                        ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                    }`}
+                    title="Cambiar dispositivo de oxigenoterapia (Cánula, Venturi, Reservorio 15L, BVM)"
+                  >
+                    <Wind className={`w-4 h-4 ${oxygenDevice !== 'none' ? 'text-cyan-400' : 'text-slate-400'}`} />
+                    <span className="text-xs font-bold font-mono">
+                      {oxygenDevice === 'none' ? 'Oxígeno (OFF)' : 'Oxígeno (ON)'}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-mono">Dispositivo ▼</span>
+                  </button>
+                </div>
 
-          {/* 9. Investigar y Tratar Causas 5H y 5T */}
-          <button
-            onClick={onOpenHyt}
-            className="p-2 rounded-lg bg-amber-950/60 hover:bg-amber-900/80 active:scale-95 text-amber-200 border border-amber-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Investigar y tratar causas reversibles (las 5 H y 5 T)"
-          >
-            <Search className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-bold font-mono">Tratar 5H/5T</span>
-            <span className="text-[9px] text-amber-400/90 font-mono">Tratamientos</span>
-          </button>
+                {/* 3. Adrenalina con Selector de Dosis e Infusión */}
+                <div>
+                  <button
+                    onClick={() => {
+                      setShowAdrenalineMenu(true);
+                      setShowFluidPicker(false);
+                      setShowO2Picker(false);
+                      setShowAtropineMenu(false);
+                      setShowAmiodaroneMenu(false);
+                      setShowOtherDrugsMenu(false);
+                    }}
+                    className="w-full p-2 rounded-lg bg-amber-950/70 hover:bg-amber-900/90 active:scale-95 text-amber-200 border border-amber-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                    title="Adrenalina: Seleccionar bolo (1mg estándar, 0.5mg, 2mg) o infusión continua (2-10 mcg/min)"
+                  >
+                    <Syringe className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold font-mono">Adrenalina</span>
+                    <span className="text-[9px] text-amber-400/80 font-mono">Dosis ▼</span>
+                  </button>
+                </div>
 
-          {/* 10. Botón IA Evaluadora de la Pauta */}
-          <button
-            onClick={onOpenAiEvaluation}
-            className="p-2 rounded-lg bg-gradient-to-r from-emerald-950/80 to-cyan-950/80 hover:from-emerald-900 hover:to-cyan-900 border border-cyan-500/70 text-cyan-200 active:scale-95 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
-            title="Evaluar todo el desempeño del equipo con Inteligencia Artificial y rellenar la pauta oficial"
-          >
-            <Bot className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-bold font-mono">Evaluar con IA</span>
-            <span className="text-[9px] text-emerald-400 font-bold font-mono">
-              {aiScorePreview ? `Nota: ${aiScorePreview}` : 'Pauta ACLS'}
-            </span>
-          </button>
+                {/* 4. Atropina con Selector de Dosis AHA 2020 */}
+                <div>
+                  <button
+                    onClick={() => {
+                      setShowAtropineMenu(true);
+                      setShowFluidPicker(false);
+                      setShowO2Picker(false);
+                      setShowAdrenalineMenu(false);
+                      setShowAmiodaroneMenu(false);
+                      setShowOtherDrugsMenu(false);
+                    }}
+                    className="w-full p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                    title="Atropina: Primera línea en bradicardia sintomática (AHA 2020 recomienda dosis inicial de 1mg)"
+                  >
+                    <Syringe className="w-4 h-4 text-teal-400" />
+                    <span className="text-xs font-bold font-mono">Atropina</span>
+                    <span className="text-[9px] text-teal-400/80 font-mono">Dosis AHA ▼</span>
+                  </button>
+                </div>
 
-        </div>
+                {/* 5. Amiodarona con Selector de Dosis ACLS */}
+                <div>
+                  <button
+                    onClick={() => {
+                      setShowAmiodaroneMenu(true);
+                      setShowFluidPicker(false);
+                      setShowO2Picker(false);
+                      setShowAdrenalineMenu(false);
+                      setShowAtropineMenu(false);
+                      setShowOtherDrugsMenu(false);
+                    }}
+                    className="w-full p-2 rounded-lg bg-purple-950/70 hover:bg-purple-900/90 active:scale-95 text-purple-200 border border-purple-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                    title="Amiodarona: 300mg tras 3er choque, 150mg tras 5° choque, o infusión"
+                  >
+                    <Syringe className="w-4 h-4 text-purple-400" />
+                    <span className="text-xs font-bold font-mono">Amiodarona</span>
+                    <span className="text-[9px] text-purple-400/80 font-mono">Dosis ▼</span>
+                  </button>
+                </div>
+
+                {/* 6. Otros Fármacos ACLS (Adenosina, Magnesio, Noradrenalina, Calcio, Bicarbonato) */}
+                <div>
+                  <button
+                    onClick={() => {
+                      setShowOtherDrugsMenu(true);
+                      setShowFluidPicker(false);
+                      setShowO2Picker(false);
+                      setShowAdrenalineMenu(false);
+                      setShowAtropineMenu(false);
+                      setShowAmiodaroneMenu(false);
+                    }}
+                    className="w-full p-2 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/90 active:scale-95 text-indigo-200 border border-indigo-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                    title="Otros fármacos: Adenosina (TSV), Sulfato de Magnesio (Torsades), Noradrenalina, Calcio, Bicarbonato"
+                  >
+                    <Syringe className="w-4 h-4 text-indigo-400" />
+                    <span className="text-xs font-bold font-mono">Otros Fármacos</span>
+                    <span className="text-[9px] text-indigo-400/80 font-mono">ACLS / H y T ▼</span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* BLOQUE DIAGNÓSTICO Y EXAMEN (7 a 10) */}
+            {(actionTab === 'all' || actionTab === 'exam') && (
+              <>
+                {/* 7. Desfibrilar 200J */}
+                <button
+                  onClick={() => handleAction('Despejar área y aplicar descarga de desfibrilación 200J')}
+                  className="p-2 rounded-lg bg-red-950/70 hover:bg-red-900/90 active:scale-95 text-red-200 border border-red-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                  title="Para FV o TV sin pulso: Descarga de 200J bifásica sincronizada o asincrónica"
+                >
+                  <Zap className="w-4 h-4 text-red-400" />
+                  <span className="text-xs font-bold font-mono">Desfibrilar</span>
+                  <span className="text-[9px] text-red-400/80 font-mono">200J (FV/TVSP)</span>
+                </button>
+
+                {/* 8. Examen Físico, POCUS y Laboratorio (Claves 5H y 5T) */}
+                <button
+                  onClick={onOpenClinicalExam}
+                  className="p-2 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 active:scale-95 text-teal-200 border border-teal-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                  title="Ver examen físico, ultrasonido POCUS en paro y gases/laboratorio para identificar causas reversibles"
+                >
+                  <Stethoscope className="w-4 h-4 text-teal-400" />
+                  <span className="text-xs font-bold font-mono">POCUS y Labs</span>
+                  <span className="text-[9px] text-teal-300/80 font-mono">Hallazgos Clave</span>
+                </button>
+
+                {/* 9. Investigar y Tratar Causas 5H y 5T */}
+                <button
+                  onClick={onOpenHyt}
+                  className="p-2 rounded-lg bg-amber-950/60 hover:bg-amber-900/80 active:scale-95 text-amber-200 border border-amber-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                  title="Investigar y tratar causas reversibles (las 5 H y 5 T)"
+                >
+                  <Search className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold font-mono">Tratar 5H/5T</span>
+                  <span className="text-[9px] text-amber-400/90 font-mono">Tratamientos</span>
+                </button>
+              </>
+            )}
+
+          </div>
+        )}
       </div>
 
       {/* 2. Bitácora de Eventos (Limpia y legible) */}

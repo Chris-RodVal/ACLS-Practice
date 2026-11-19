@@ -1,5 +1,5 @@
-// Clinical Monitor & Defibrillator Web Audio API Sound Engine + Speech Synthesis Voice
-// Realistic synthesized audio for clinical simulation + native Spanish voice announcements
+// Clinical Monitor & Defibrillator Web Audio API Sound Engine + High-Fidelity Natural Voice System
+// Realistic synthesized audio for clinical simulation + Natural Human Spanish voice announcements
 
 class ClinicalSoundEngine {
   constructor() {
@@ -10,6 +10,67 @@ class ClinicalSoundEngine {
     this.chargeGain = null;
     this.readyInterval = null;
     this.metronomeInterval = null;
+    this.voices = [];
+    this.activeUtterance = null;
+    this.selectedSystemVoice = null;
+    this.selectedMaleVoice = null;
+    this.selectedFemaleVoice = null;
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      this.initVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        this.initVoices();
+      };
+    }
+  }
+
+  initVoices() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    this.voices = window.speechSynthesis.getVoices() || [];
+    this.categorizeVoices();
+  }
+
+  categorizeVoices() {
+    if (!this.voices || this.voices.length === 0) return;
+
+    // Filter Spanish voices
+    const esVoices = this.voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('es'));
+    const allVoices = esVoices.length > 0 ? esVoices : this.voices;
+
+    // Scoring to prioritize ultra-realistic neural / natural / enhanced voices
+    const scoreVoice = (v) => {
+      let score = 0;
+      const name = (v.name || '').toLowerCase();
+      const lang = (v.lang || '').toLowerCase();
+
+      // Highest tier: Natural / Neural / Enhanced / Premium voices
+      if (name.includes('natural') || name.includes('neural')) score += 100;
+      if (name.includes('enhanced') || name.includes('premium')) score += 80;
+      if (name.includes('google')) score += 70; // Google español is exceptionally fluid and clear
+      if (name.includes('online')) score += 60;
+      if (name.includes('siri')) score += 50;
+      if (name.includes('alvaro') || name.includes('álvaro') || name.includes('elvira') || name.includes('jorge') || name.includes('monica') || name.includes('paulina')) score += 40;
+
+      // Regional preferences (Chile, Latin America, Spain)
+      if (lang.includes('cl') || lang.includes('419') || lang.includes('mx') || lang.includes('es')) score += 20;
+      return score;
+    };
+
+    const sorted = [...allVoices].sort((a, b) => scoreVoice(b) - scoreVoice(a));
+
+    // Best system/proctor voice (calm, authoritative, clear)
+    this.selectedSystemVoice = sorted[0];
+
+    // Male voice candidates
+    const maleNames = ['jorge', 'juan', 'diego', 'alvaro', 'álvaro', 'carlos', 'miguel', 'david', 'male', 'hombre', 'enrique', 'pablo', 'manuel'];
+    const femaleNames = ['monica', 'mónica', 'paulina', 'francisca', 'soledad', 'elvira', 'dalia', 'helena', 'rosa', 'lucia', 'lucía', 'maría', 'maria', 'sofia', 'sofía', 'female', 'mujer', 'carmen', 'laura'];
+
+    this.selectedMaleVoice = sorted.find(v => maleNames.some(m => (v.name || '').toLowerCase().includes(m))) 
+      || sorted.find(v => !femaleNames.some(f => (v.name || '').toLowerCase().includes(f))) 
+      || sorted[0];
+
+    this.selectedFemaleVoice = sorted.find(v => femaleNames.some(f => (v.name || '').toLowerCase().includes(f))) 
+      || sorted[0];
   }
 
   init() {
@@ -42,22 +103,83 @@ class ClinicalSoundEngine {
     return this.voiceMuted;
   }
 
+  // Pre-process and normalize clinical abbreviations into natural spoken Spanish words
+  normalizeMedicalSpokenText(text) {
+    if (!text) return '';
+    return text
+      .replace(/\bSF\s*0\.?9%?\b/gi, 'suero fisiológico')
+      .replace(/\bSF\b/g, 'suero fisiológico')
+      .replace(/\bTET\b/g, 'tubo endotraqueal')
+      .replace(/\bIV\b/g, 'intravenoso')
+      .replace(/\bIO\b/g, 'intraóseo')
+      .replace(/\blpm\b/gi, 'latidos por minuto')
+      .replace(/\bcpm\b/gi, 'compresiones por minuto')
+      .replace(/\bmg\b/gi, 'miligramos')
+      .replace(/\bmcg\b/gi, 'microgramos')
+      .replace(/\bml\b/gi, 'mililitros')
+      .replace(/\bPA\b/g, 'presión arterial')
+      .replace(/\bFC\b/g, 'frecuencia cardíaca')
+      .replace(/\bFR\b/g, 'frecuencia respiratoria')
+      .replace(/\bPAM\b/g, 'presión arterial media')
+      .replace(/\bSpO2\b/gi, 'saturación de oxígeno')
+      .replace(/\bEtCO2\b/gi, 'capnografía')
+      .replace(/\bGSA\b/g, 'gases arteriales')
+      .replace(/\bPCR\b/g, 'paro cardiorrespiratorio')
+      .replace(/\bRCE\b/g, 'retorno de circulación espontánea')
+      .replace(/\bECG\b/g, 'electrocardiograma')
+      .replace(/\bTTM\b/g, 'manejo específico de temperatura')
+      .replace(/\bMET\b/g, 'manejo específico de temperatura')
+      .replace(/\bFV\b/g, 'fibrilación ventricular')
+      .replace(/\bTVSP\b/g, 'taquicardia ventricular sin pulso')
+      .replace(/\bAESP\b/g, 'actividad eléctrica sin pulso')
+      .replace(/\bTSVP\b/g, 'taquicardia supraventricular paroxística')
+      .replace(/\bFA\b/g, 'fibrilación auricular')
+      .replace(/[✅⏱️🎯⚠️❌💧💉🩺❄️🎉🗣️▶️⏹️⏩👁️🤝⚡🔦]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   // Native Speech Synthesis in Spanish for patient speech & clinical proctor
-  speak(text, role = 'system') {
+  speak(text, role = 'system', gender = 'M') {
     if (this.voiceMuted || !text) return;
     if (!('speechSynthesis' in window)) return;
 
     try {
+      if (!this.voices || this.voices.length === 0) {
+        this.initVoices();
+      }
+
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'es-ES'; // Spanish
-      utterance.rate = 1.05;
+      const cleanText = this.normalizeMedicalSpokenText(text);
+      if (!cleanText) return;
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = 'es-ES';
 
       if (role === 'patient') {
-        utterance.pitch = 1.15; // slightly higher pitch for patient voice
+        const isFemale = gender === 'F' || gender === 'femenino' || gender === 'Mujer';
+        const chosenVoice = isFemale ? this.selectedFemaleVoice : this.selectedMaleVoice;
+        if (chosenVoice) {
+          utterance.voice = chosenVoice;
+          if (chosenVoice.lang) utterance.lang = chosenVoice.lang;
+        }
+        // Human expressive cadence for patient in clinical distress
+        utterance.rate = 0.94;
+        utterance.pitch = isFemale ? 1.06 : 0.96;
       } else {
-        utterance.pitch = 0.95; // professional calm proctor voice
+        // System proctor / clinical monitor: professional, calm, authoritative
+        if (this.selectedSystemVoice) {
+          utterance.voice = this.selectedSystemVoice;
+          if (this.selectedSystemVoice.lang) utterance.lang = this.selectedSystemVoice.lang;
+        }
+        utterance.rate = 0.98;
+        utterance.pitch = 1.0;
       }
+
+      // Prevent garbage collection in Chrome mid-speech
+      this.activeUtterance = utterance;
+      utterance.onend = () => { this.activeUtterance = null; };
+      utterance.onerror = () => { this.activeUtterance = null; };
 
       window.speechSynthesis.speak(utterance);
     } catch (e) {
@@ -112,7 +234,6 @@ class ClinicalSoundEngine {
       this.chargeOsc.frequency.setValueAtTime(220, now);
       this.chargeOsc.frequency.exponentialRampToValueAtTime(1150, now + durationSec);
 
-      // Robust volume for clear audibility
       this.chargeGain.gain.setValueAtTime(0.12, now);
       this.chargeGain.gain.linearRampToValueAtTime(0.32, now + durationSec);
 

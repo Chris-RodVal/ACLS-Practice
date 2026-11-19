@@ -1,6 +1,7 @@
 import React from 'react';
-import { User, Activity, AlertCircle, Clock, Volume2, VolumeX, ShieldAlert, CheckCircle, HeartCrack, Sparkles } from 'lucide-react';
+import { User, Activity, AlertCircle, Clock, Volume2, ShieldAlert, CheckCircle, HeartCrack, Sparkles } from 'lucide-react';
 import { soundEngine } from '../audio/soundEngine';
+import PatientAvatarVignette from './PatientAvatarVignette';
 
 export default function PatientStatusPanel({
   currentCase,
@@ -14,12 +15,14 @@ export default function PatientStatusPanel({
   consciousness = 'Consciente',
   airwayStatus = 'Espontánea',
   ivStatus = 'Vía periférica 18G',
+  oxygenDevice = 'none',
   isCprActive = false,
   pulsePresent = true,
   onOpenEvaluation = () => {},
   onForceArrest = () => {},
   onTogglePauseTimer = () => {},
-  onAddInitialTime = () => {}
+  onAddInitialTime = () => {},
+  onLogInteraction = () => {}
 }) {
   const formatTime = (totalSec) => {
     const mins = Math.floor(totalSec / 60);
@@ -29,12 +32,12 @@ export default function PatientStatusPanel({
 
   const handleSpeakPatient = () => {
     if (patientDialogue) {
-      soundEngine.speak(patientDialogue, 'patient');
+      soundEngine.speak(patientDialogue, 'patient', currentCase?.patient?.gender);
     }
   };
 
   return (
-    <div className="bg-[#090F1C] border-b border-slate-800 p-3 flex flex-col gap-2.5">
+    <div className="bg-[#090F1C] border-b border-slate-800 p-3 flex flex-col gap-3">
       {/* Fila Superior: Datos Clave del Paciente, Fase Actual y Tiempos */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         
@@ -139,28 +142,34 @@ export default function PatientStatusPanel({
               </div>
             </div>
           )}
-
-          {/* Botón Ver Pauta Oficial */}
-          <button
-            onClick={onOpenEvaluation}
-            className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-mono text-xs font-bold rounded-lg shadow-sm transition border border-emerald-400/30"
-          >
-            Pauta & Nota
-          </button>
         </div>
 
       </div>
 
-      {/* Recuadro de Anuncios Clínicos y Voz del Paciente */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+      {/* Grid Principal: Viñeta Interactiva con Cara del Paciente + Situación Clínica y Estado Físico */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
         
-        {/* 1. Anuncio Clínico Principal (2 Cols) */}
-        <div className={`md:col-span-2 p-2.5 rounded-lg border text-xs font-mono flex flex-col justify-between ${
+        {/* 1. Viñeta Interactiva del Paciente (Avatar, Ojos, Parpadeo, Preguntas, Manos, Pupilas) (5 Cols) */}
+        <div className="lg:col-span-5">
+          <PatientAvatarVignette
+            currentCase={currentCase}
+            phase={phase}
+            pulsePresent={pulsePresent}
+            consciousness={consciousness}
+            airwayStatus={airwayStatus}
+            oxygenDevice={oxygenDevice}
+            patientDialogue={patientDialogue}
+            onLogInteraction={onLogInteraction}
+          />
+        </div>
+
+        {/* 2. Situación Clínica Actual y Diálogo del Paciente (4 Cols) */}
+        <div className={`lg:col-span-4 p-3 rounded-xl border text-xs font-mono flex flex-col justify-between shadow-sm ${
           phase === 'arrest'
-            ? 'bg-rose-950/30 border-rose-800 text-rose-200'
+            ? 'bg-rose-950/20 border-rose-800/80 text-rose-200'
             : phase === 'rce' || phase === 'post_rce'
-            ? 'bg-emerald-950/30 border-emerald-800 text-emerald-200'
-            : 'bg-[#0E1626] border-slate-800 text-slate-300'
+            ? 'bg-emerald-950/20 border-emerald-800/80 text-emerald-200'
+            : 'bg-[#0A101D] border-slate-800 text-slate-300'
         }`}>
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
@@ -168,22 +177,22 @@ export default function PatientStatusPanel({
                 <AlertCircle className="w-3.5 h-3.5 text-cyan-400" />
                 Situación Clínica Actual
               </span>
-              <span className="text-cyan-400">Objetivo Activo</span>
+              <span className="text-cyan-400 font-semibold">Objetivo Activo</span>
             </div>
-            <p className="leading-relaxed">
+            <p className="leading-relaxed text-[11px] text-slate-200">
               {announcement || currentCase?.patient.presentation}
             </p>
           </div>
 
           {/* Diálogo del Paciente con botón de voz interactivo */}
           {patientDialogue && phase === 'initial' && (
-            <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-amber-300 text-xs italic">
+            <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-amber-300 text-xs italic bg-amber-950/20 px-2 py-1 rounded-lg border border-amber-900/30">
               <span className="truncate pr-2">
                 🗣️ Paciente: "{patientDialogue}"
               </span>
               <button
                 onClick={handleSpeakPatient}
-                className="shrink-0 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 transition"
+                className="shrink-0 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 transition active:scale-95"
                 title="Reproducir audio de la voz del paciente"
               >
                 <Volume2 className="w-3 h-3" /> Escuchar
@@ -192,25 +201,38 @@ export default function PatientStatusPanel({
           )}
         </div>
 
-        {/* 2. Estado Físico Rápido (1 Col) */}
-        <div className="bg-[#080D18] border border-slate-800 rounded-lg p-2.5 text-xs font-mono flex flex-col justify-between">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
-            Evaluación Física
+        {/* 3. Estado Físico Rápido (3 Cols) */}
+        <div className="lg:col-span-3 bg-[#080D18] border border-slate-800 rounded-xl p-3 text-xs font-mono flex flex-col justify-between shadow-sm">
+          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Evaluación Física</span>
+            <span className="text-cyan-400 text-[9px]">Signos</span>
           </div>
-          <div className="space-y-1 text-[11px]">
-            <div className="flex justify-between">
+          <div className="space-y-1.5 text-[11px]">
+            <div className="flex justify-between items-center py-0.5 border-b border-slate-800/60">
               <span className="text-slate-400">Conciencia:</span>
-              <span className={`font-semibold ${pulsePresent ? 'text-slate-200' : 'text-rose-400 font-bold'}`}>
+              <span className={`font-semibold text-right max-w-[140px] truncate ${pulsePresent ? 'text-slate-200' : 'text-rose-400 font-bold'}`} title={consciousness}>
                 {consciousness}
               </span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center py-0.5 border-b border-slate-800/60">
               <span className="text-slate-400">Vía Aérea:</span>
-              <span className="text-cyan-300 font-semibold">{airwayStatus}</span>
+              <span className="text-cyan-300 font-semibold text-right max-w-[140px] truncate" title={airwayStatus}>
+                {airwayStatus}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Pulso:</span>
-              <span className={`font-bold ${pulsePresent ? 'text-emerald-400' : 'text-rose-500 animate-pulse'}`}>
+            <div className="flex justify-between items-center py-0.5 border-b border-slate-800/60">
+              <span className="text-slate-400">Acceso IV:</span>
+              <span className="text-slate-300 font-semibold text-right max-w-[140px] truncate" title={ivStatus}>
+                {ivStatus}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pt-0.5">
+              <span className="text-slate-400">Pulso Central:</span>
+              <span className={`font-bold px-1.5 py-0.2 rounded text-[10px] ${
+                pulsePresent 
+                  ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800' 
+                  : 'bg-rose-950/90 text-rose-400 border border-rose-600 animate-pulse'
+              }`}>
                 {pulsePresent ? 'PALPABLE' : '¡SIN PULSO!'}
               </span>
             </div>

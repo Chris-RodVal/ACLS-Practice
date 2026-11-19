@@ -362,8 +362,50 @@ export default function App() {
         soundEngine.speak('¡Simulación completada con éxito! Todos los pasos del algoritmo ACLS han sido cumplidos.', 'system');
         addLog('Docente Evaluador', '🏆 ¡SIMULACIÓN CLÍNICA ACLS COMPLETADA CON ÉXITO! Has ejecutado el algoritmo ACLS en su totalidad: Manejo de Arritmia Inicial ➔ Reanimación en Paro Cardíaco ➔ RCE ➔ Cuidados Posparo Completos (PA, ECG 12D, MET y Derivación). Procediendo a la Pauta de Evaluación Oficial.', 'success');
         setAnnouncement('🏆 ¡CASO Y ALGORITMO ACLS COMPLETADOS CON ÉXITO! Has estabilizado al paciente y completado todos los cuidados posparo según pauta (PA, ECG 12D, MET y Derivación).');
+        setTimeout(() => {
+          handleOpenEvaluation();
+        }, 2200);
       }
     }
+  };
+
+  // Disparar Fallecimiento del Paciente por errores críticos reiterados o medicación incorrecta
+  const triggerPatientDeath = (reason = 'Errores críticos reiterados y daño miocárdico irreversible') => {
+    soundEngine.stopCharge();
+    soundEngine.stopReadyTone();
+    soundEngine.stopMetronome();
+    setPhase('dead');
+    setPulsePresent(false);
+    setHr(0);
+    setBp('0/0');
+    setSpo2(0);
+    setEtco2(0);
+    setRr(0);
+    setRhythm('ASISTOLIA');
+    setRhythmName('Asistolia Irreversible (Línea Plana)');
+    setConsciousness('Fallecido — Paro irreversible');
+    setIsSimulationCompleted(true);
+    soundEngine.playAlarm(true);
+    soundEngine.speak('El paciente ha fallecido. Paro irreversible. Procediendo a la pauta de evaluación.', 'system');
+    addLog('Docente Evaluador', `💀 ¡EL PACIENTE HA FALLECIDO! Razón: ${reason}. La reanimación ha fracasado. Desplegando Pauta de Cotejo y Nota final.`, 'error');
+    setAnnouncement(`💀 PACIENTE FALLECIDO: ${reason}. Simulación finalizada.`);
+    setTimeout(() => {
+      handleOpenEvaluation();
+    }, 2500);
+  };
+
+  // Helper para acumular errores críticos y detonar muerte tras errores reiterados (>=3)
+  const addCriticalError = (err) => {
+    setCriticalErrors((prev) => {
+      const next = [...prev, err];
+      if (next.length >= 3 && phase !== 'dead') {
+        setTimeout(() => {
+          triggerPatientDeath('Acumulación de 3 o más errores críticos fatales durante la reanimación (medicación incorrecta o violaciones graves del algoritmo ACLS).');
+        }, 800);
+      }
+      return next;
+    });
+    addLog('Docente Evaluador', `❌ ${err}`, 'error');
   };
 
   const handleInitiateTtm = (targetTemp = 33) => {
@@ -431,8 +473,7 @@ export default function App() {
       if (!isSync) {
         // Critical Error: Unsynchronized shock with pulse -> induces VF
         const err = 'Error Crítico: Descarga NO sincronizada aplicada en taquicardia con pulso. Riesgo inminente de inducir FV por fenómeno R-sobre-T.';
-        setCriticalErrors((prev) => [...prev, err]);
-        addLog('Docente Evaluador', `❌ ${err}`, 'error');
+        addCriticalError(err);
         triggerCardiacArrest();
         return;
       } else {
@@ -453,8 +494,7 @@ export default function App() {
       if (!currentCase.isShockable) {
         // Critical Error: Shocking Non-shockable rhythm (AESP or Asystole)
         const err = `Error Crítico: Descargó en ritmo NO desfibrilable (${currentCase.arrestType}). En AESP y Asistolia NO se desfibrila.`;
-        setCriticalErrors((prev) => [...prev, err]);
-        addLog('Docente Evaluador', `❌ ${err}`, 'error');
+        addCriticalError(err);
         return;
       }
 
@@ -888,8 +928,7 @@ export default function App() {
       }
     } else {
       const err = 'Error Crítico: Administró bolo rápido de Adrenalina en paciente con pulso (riesgo severo de crisis hipertensiva, hemorragia o inducción de FV).';
-      setCriticalErrors((prev) => [...prev, err]);
-      addLog('Docente Evaluador', `❌ ${err}`, 'error');
+      addCriticalError(err);
       soundEngine.speak('Error crítico: Adrenalina en bolo contraindicada con pulso.', 'system');
     }
   };
@@ -915,8 +954,7 @@ export default function App() {
       }
     } else if (phase === 'arrest') {
       const err = 'Error: La Atropina ya NO forma parte del algoritmo de PCR (AESP / Asistolia) según las guías ACLS de la AHA.';
-      setCriticalErrors((prev) => [...prev, err]);
-      addLog('Docente Evaluador', `❌ ${err}`, 'error');
+      addCriticalError(err);
       soundEngine.speak('Error: Atropina no forma parte del algoritmo de paro.', 'system');
     } else {
       addLog('Docente Evaluador', '⚠️ Atropina no indicada: el paciente no presenta bradicardia sintomática.', 'warning');
@@ -941,6 +979,20 @@ export default function App() {
       soundEngine.speak('Infusión de amiodarona iniciada.', 'system');
     } else {
       addLog('Docente Evaluador', '⚠️ Amiodarona indicada principalmente en FV/TV sin pulso refractaria a descargas o taquicardia ventricular con pulso.', 'warning');
+    }
+  };
+
+  // 4d2. Administrar Lidocaína (Alternativa oficial a Amiodarona en PCR según guías AHA)
+  const handleAdministerLidocaine = (dose = '1.5 mg/kg') => {
+    if (phase === 'arrest' && currentCase.isShockable) {
+      setAmiodaroneCount((prev) => prev + 1); // Contabiliza como antiarrítmico válido para RCE en paro desfibrilable
+      addLog('Fármacos', `💉 ¡Dosis Correcta ACLS!: Administrado Lidocaína ${dose} IV en bolo rápido (alternativa oficial a Amiodarona para FV/TV refractaria).`, 'success');
+      soundEngine.speak('Lidocaína bolo intravenoso administrado.', 'system');
+    } else if (phase === 'initial' && currentCase.type === 'taquicardia') {
+      addLog('Fármacos', '💉 Bolo de Lidocaína 1 mg/kg IV administrado para taquicardia ventricular con pulso.', 'success');
+      soundEngine.speak('Lidocaína administrada.', 'system');
+    } else {
+      addLog('Docente Evaluador', '⚠️ Lidocaína indicada como antiarrítmico en FV/TV sin pulso refractaria o TV con pulso.', 'warning');
     }
   };
 
@@ -1117,6 +1169,73 @@ export default function App() {
         handleCheckPulseOnly();
         break;
 
+      case 'CHECK_CONSCIOUSNESS':
+        if (phase === 'arrest' || !pulsePresent) {
+          addLog('Líder', '🗣️ Estímulo verbal: "¡Hola! ¿Me escucha?" ➔ Paciente sin respuesta a estímulos verbales ni dolorosos (Inconsciente, Glasgow 3). ¡SIN PULSO!', 'error');
+          soundEngine.speak('El paciente no responde. Sin pulso.', 'system');
+        } else if (phase === 'post_rce' || phase === 'rce') {
+          addLog('Líder', `🗣️ Evaluación neurológica post-paro: ${consciousness}`, 'info');
+          soundEngine.speak(`Evaluación de conciencia: ${consciousness}`, 'system');
+        } else {
+          const resp = patientDialogue || 'Doctor, me siento muy mal y me falta el aire.';
+          addLog('Líder', `🗣️ Interrogatorio clínico: "¡Hola! ¿Me escucha?" ➔ Paciente responde: "${resp}" (Consciente, orientado).`, 'success');
+          soundEngine.speak(resp, 'patient', currentCase?.patient?.gender);
+        }
+        break;
+
+      case 'CHECK_BLINK':
+        if (phase === 'arrest' || !pulsePresent) {
+          addLog('Líder', '👁️ Orden motora ocular: "Parpadee si me escucha" ➔ Párpados inmóviles, sin respuesta en paro.', 'error');
+        } else {
+          addLog('Líder', '👁️ Orden motora ocular: El paciente obedece y parpadea dos veces.', 'success');
+          soundEngine.speak('El paciente obedece y parpadea dos veces.', 'system');
+        }
+        break;
+
+      case 'CHECK_HAND_GRIP':
+        if (phase === 'arrest' || !pulsePresent) {
+          addLog('Líder', '🤝 Toma de mano: Mano flácida, tono muscular abolido, sin respuesta motora voluntaria (Glasgow M1).', 'error');
+          soundEngine.speak('Mano flácida. Sin respuesta motora.', 'system');
+        } else if (phase === 'post_rce') {
+          addLog('Líder', '🤝 Maniobra de prensión: Paciente comatoso post-paro no obedece órdenes de prensión.', 'warning');
+          soundEngine.speak('No obedece órdenes motoras.', 'system');
+        } else {
+          addLog('Líder', '🤝 Maniobra de prensión: Paciente aprieta la mano firmemente con fuerza simétrica 5/5 bilateral (Obedece órdenes motoras, Glasgow M6).', 'success');
+          soundEngine.speak('El paciente aprieta tu mano firmemente.', 'system');
+        }
+        break;
+
+      case 'CHECK_PUPILS':
+        if (phase === 'arrest' || !pulsePresent) {
+          addLog('Líder', '🔦 Exploración pupilar: MIDRIASIS BILATERAL ARREACTIVA (6.5 mm). Sin reflejo fotomotor.', 'error');
+          soundEngine.speak('Midriasis bilateral arreactiva.', 'system');
+        } else {
+          addLog('Líder', '🔦 Exploración pupilar: Pupilas isocóricas y reactivas a la luz (3.5 mm a 1.5 mm). Reflejo fotomotor directo y consensual presente bilateral.', 'success');
+          soundEngine.speak('Pupilas isocóricas y reactivas a la luz.', 'system');
+        }
+        break;
+
+      case 'CHECK_PAIN_STIMULUS':
+        if (phase === 'arrest' || !pulsePresent) {
+          addLog('Líder', '⚡ Estímulo doloroso: Sin respuesta motora ni ocular (Glasgow 3).', 'error');
+          soundEngine.speak('Sin respuesta al dolor.', 'system');
+        } else if (phase === 'post_rce') {
+          addLog('Líder', '⚡ Estímulo doloroso: Paciente emite quejido inespecífico y realiza retirada flexora al dolor.', 'warning');
+          soundEngine.speak('Retirada inespecífica al dolor.', 'system');
+        } else {
+          addLog('Líder', '⚡ Estímulo doloroso: Paciente localiza inmediatamente y retira con molestia: "¡Ay doctor, me duele!".', 'info');
+          soundEngine.speak('¡Ay doctor! Me duele.', 'patient', currentCase?.patient?.gender);
+        }
+        break;
+
+      case 'START_PACER':
+        handleTogglePacing();
+        break;
+
+      case 'GIVE_LIDOCAINE':
+        handleAdministerLidocaine();
+        break;
+
       case 'SYNC_CARDIOVERSION':
         setIsSync(true);
         setJoules(currentCase.type === 'taquicardia' ? 100 : 200);
@@ -1149,8 +1268,7 @@ export default function App() {
       case 'GIVE_ADENOSINE':
         if (phase === 'arrest') {
           const err = 'Error Crítico: Administró Adenosina a un paciente en Paro Cardiorrespiratorio.';
-          setCriticalErrors((prev) => [...prev, err]);
-          addLog('Docente Evaluador', `❌ ${err}`, 'error');
+          addCriticalError(err);
         } else if (phase === 'initial' && currentCase.initialVitals.rhythm === 'TSVP') {
           addLog('Fármacos', 'Administrado Adenosina 6 mg IV en bolo rápido por acceso proximal con llave de tres pasos + 20 ml SF.', 'success');
           addLog('Monitor', 'Pausa transitoria en el trazado ECG...', 'info');
@@ -1248,7 +1366,7 @@ export default function App() {
       adrenalineCount,
       amiodaroneCount,
       hasGivenAtropine,
-      hasGivenVolume,
+      hasGivenVolume: hasGivenVolume || infusedVolumeMl > 0,
       hasIdentifiedHyt,
       has12Lead,
       hasTtm,
@@ -1279,7 +1397,7 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono font-black text-base tracking-wider bg-gradient-to-r from-cyan-400 via-teal-300 to-blue-400 bg-clip-text text-transparent">
-                VITALS ACLS Simlator
+                VITALS ACLS Simulator
               </span>
               <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
                 SIMULADOR CLÍNICO
@@ -1331,18 +1449,25 @@ export default function App() {
             <span className="hidden sm:inline">API IA</span>
           </button>
 
-          <button
-            onClick={handleOpenAiEvaluation}
-            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition border border-emerald-400/30"
-          >
-            <Award className="w-4 h-4" />
-            <span>Pauta de Cotejo y Nota</span>
-            {aiScorePreview && (
-              <span className="bg-emerald-950/80 px-1.5 py-0.5 rounded text-[10px] text-emerald-200">
-                {aiScorePreview}
-              </span>
-            )}
-          </button>
+          {/* La Pauta de Cotejo y Nota se muestra EXCLUSIVAMENTE al final del caso (RCE exitoso o fallecimiento) */}
+          {(isSimulationCompleted || phase === 'dead') && (
+            <button
+              onClick={handleOpenAiEvaluation}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow-md transition border animate-pulse ${
+                phase === 'dead'
+                  ? 'bg-rose-900 hover:bg-rose-800 text-rose-100 border-rose-500 shadow-rose-900/40'
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-400/30 shadow-emerald-600/30'
+              }`}
+            >
+              <Award className="w-4 h-4" />
+              <span>{phase === 'dead' ? '💀 Ver Pauta (Caso Finalizado)' : '🏆 Pauta de Cotejo y Nota'}</span>
+              {aiScorePreview && (
+                <span className="bg-slate-900/80 px-1.5 py-0.5 rounded text-[10px] text-yellow-300">
+                  {aiScorePreview}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </header>
 
@@ -1359,12 +1484,14 @@ export default function App() {
         consciousness={consciousness}
         airwayStatus={airwayStatus}
         ivStatus={ivStatus}
+        oxygenDevice={oxygenDevice}
         isCprActive={isCprActive}
         pulsePresent={pulsePresent}
         onOpenEvaluation={handleOpenEvaluation}
         onForceArrest={triggerCardiacArrest}
         onTogglePauseTimer={() => setIsTimerPaused(p => !p)}
         onAddInitialTime={() => setInitialTimeLimit(p => p + 60)}
+        onLogInteraction={addLog}
       />
 
       {/* Main Content Area */}

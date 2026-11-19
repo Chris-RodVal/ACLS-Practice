@@ -29,12 +29,27 @@ export function parseClinicalCommand(input) {
     return { action: 'START_CPR', raw };
   }
 
-  // 3. Comprobar pulso / ritmo / conciencia
+  // 3. Comprobar pulso / ritmo / conciencia e interacción con el paciente
   if ((text.includes('pulso') && (text.includes('tomar') || text.includes('evaluar') || text.includes('chequear') || text.includes('ver') || text.includes('palpar'))) ||
       text.includes('chequear pulso') || text.includes('evaluar ritmo') || text.includes('analizar ritmo')) {
     return { action: 'CHECK_PULSE_RHYTHM', raw };
   }
-  if (text.includes('conciencia') || text.includes('estimulo') || text.includes('responde') || text.includes('evaluar paciente')) {
+  if (text.includes('conciencia') || text.includes('estimulo') || text.includes('responde') || text.includes('evaluar paciente') || 
+      text.includes('me escucha') || text.includes('hola') || text.includes('parpade') || text.includes('tome mi mano') || 
+      text.includes('mano') || text.includes('apriete') || text.includes('pupila') || text.includes('linterna') || 
+      text.includes('avpu') || text.includes('glasgow') || text.includes('dolor')) {
+    if (text.includes('mano') || text.includes('apriete')) {
+      return { action: 'CHECK_HAND_GRIP', raw };
+    }
+    if (text.includes('parpade')) {
+      return { action: 'CHECK_BLINK', raw };
+    }
+    if (text.includes('pupila') || text.includes('linterna') || text.includes('fotomotor')) {
+      return { action: 'CHECK_PUPILS', raw };
+    }
+    if (text.includes('dolor') || text.includes('trapecio') || text.includes('ungueal')) {
+      return { action: 'CHECK_PAIN_STIMULUS', raw };
+    }
     return { action: 'CHECK_CONSCIOUSNESS', raw };
   }
 
