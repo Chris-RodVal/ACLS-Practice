@@ -94,9 +94,7 @@ export default function App() {
   const [infusedVolumeMl, setInfusedVolumeMl] = useState(0);
   const [aiScorePreview, setAiScorePreview] = useState(null);
   const DEFAULT_GEMINI_KEY = 'AIzaSyDnALQuCp-KxRsiVpjyPReGXTwDNroh8Go';
-  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('acls_gemini_api_key') || DEFAULT_GEMINI_KEY);
-  const [elevenLabsApiKey, setElevenLabsApiKey] = useState(() => soundEngine.getElevenLabsKey() || '');
-  const [isApiKeyPromptOpen, setIsApiKeyPromptOpen] = useState(false);
+  const geminiApiKey = DEFAULT_GEMINI_KEY;
   const [isMenuOpen, setIsMenuOpen] = useState(false); // Barra de menú superior colapsable para optimizar espacio vertical
 
   // 7. Modals
@@ -1481,15 +1479,6 @@ export default function App() {
                 <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
                 Reiniciar
               </button>
-
-              <button
-                onClick={() => setIsApiKeyPromptOpen(true)}
-                className="bg-[#131D31] hover:bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition shadow"
-                title="Configurar clave API de Google Gemini (Opcional, incluye evaluador local 100% gratis)"
-              >
-                <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="inline">Voz & IA</span>
-              </button>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1698,146 +1687,6 @@ export default function App() {
         currentCase={currentCase}
         dynamicExam={dynamicExam}
       />
-
-      {/* Modal Configuración Voz Hiperrealista & API Key Gemini */}
-      {isApiKeyPromptOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0F172A] border border-cyan-500/50 rounded-2xl shadow-2xl max-w-lg w-full p-5 text-slate-100 font-mono space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Volume2 className="w-5 h-5 text-cyan-400" />
-                <h3 className="text-sm font-bold text-white">Voz Hiperrealista & Configuración IA</h3>
-              </div>
-              <button
-                onClick={() => setIsApiKeyPromptOpen(false)}
-                className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* SECCIÓN 1: MOTOR DE VOZ */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-cyan-300 uppercase tracking-wide">
-                  🔊 1. Motor de Voz del Paciente y Sistema
-                </span>
-                <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-600/60 px-1.5 py-0.5 rounded font-bold">
-                  {elevenLabsApiKey ? 'ElevenLabs AI' : 'Voz Neuronal Local'}
-                </span>
-              </div>
-
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                El simulador incluye por defecto <strong>voces neuronales naturales en español</strong> integradas en tu sistema operativo (Edge Natural, Chrome Google, Apple Siri).
-              </p>
-
-              {/* Botones de Prueba Inmediata de Voz */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundEngine.speak(
-                      currentCase?.patient?.gender === 'F'
-                        ? '¡Doctor! Siento que el corazón se me sale del pecho y me falta el aire.'
-                        : '¡Doctor! Siento una presión enorme en el pecho y me cuesta respirar.',
-                      'patient',
-                      currentCase?.patient?.gender
-                    );
-                  }}
-                  className="p-2 rounded-lg bg-cyan-950 hover:bg-cyan-900 border border-cyan-600/70 text-cyan-200 text-xs flex items-center justify-center gap-1.5 font-bold transition shadow"
-                >
-                  <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>▶ Probar Paciente</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundEngine.speak(
-                      'Frecuencia cardíaca ciento sesenta por minuto. Presión arterial noventa sobre cincuenta.',
-                      'system'
-                    );
-                  }}
-                  className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs flex items-center justify-center gap-1.5 font-bold transition shadow"
-                >
-                  <Bot className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>▶ Probar Monitor</span>
-                </button>
-              </div>
-
-              {/* Opción ElevenLabs (Hiperrealismo Máximo) */}
-              <div className="bg-[#070D18] p-3 rounded-xl border border-slate-800 text-[11px] space-y-2 mt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-amber-300 font-semibold">¿Quieres voces hiperrealistas con ElevenLabs?</span>
-                  <span className="text-[9px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">10.000 car./mes gratis</span>
-                </div>
-                <p className="text-slate-400 leading-snug">
-                  ElevenLabs genera inflexiones humanas, gemidos y respiraciones de angustia. Si tienes una API Key gratuita de ElevenLabs, ingrésala aquí:
-                </p>
-                <div>
-                  <input
-                    type="password"
-                    value={elevenLabsApiKey}
-                    onChange={(e) => {
-                      const val = e.target.value.trim();
-                      setElevenLabsApiKey(val);
-                      soundEngine.setElevenLabsKey(val);
-                    }}
-                    placeholder="sk_... (ElevenLabs API Key)"
-                    className="w-full bg-[#060A13] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <hr className="border-slate-800" />
-
-            {/* SECCIÓN 2: IA EVALUADORA (GEMINI) */}
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-cyan-300 uppercase tracking-wide">
-                🤖 2. IA Evaluadora y Feedback
-              </span>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                El motor local calcula tu nota automáticamente. Opcionalmente puedes conectar tu clave gratuita de Google AI Studio para un análisis clínico exhaustivo en lenguaje natural:
-              </p>
-              <div>
-                <input
-                  type="password"
-                  value={geminiApiKey}
-                  onChange={(e) => {
-                    setGeminiApiKey(e.target.value);
-                    localStorage.setItem('acls_gemini_api_key', e.target.value.trim());
-                  }}
-                  placeholder="AIzaSy... (Gemini API Key)"
-                  className="w-full bg-[#060A13] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-            </div>
-
-            {/* BOTONES DE CIERRE */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-              <button
-                onClick={() => {
-                  setGeminiApiKey('');
-                  setElevenLabsApiKey('');
-                  soundEngine.setElevenLabsKey('');
-                  localStorage.removeItem('acls_gemini_api_key');
-                  setIsApiKeyPromptOpen(false);
-                }}
-                className="text-[11px] text-rose-400 hover:underline"
-              >
-                Restablecer a valores por defecto
-              </button>
-              <button
-                onClick={() => setIsApiKeyPromptOpen(false)}
-                className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs rounded-lg transition"
-              >
-                Guardar y Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
