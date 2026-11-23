@@ -623,6 +623,17 @@ export default function CommandConsole({
                   <span className="text-xs font-bold font-mono">Tratar 5H/5T</span>
                   <span className="text-[9px] text-amber-400/90 font-mono">Tratamientos</span>
                 </button>
+
+                {/* 10. Hemoglucotest (HGT) */}
+                <button
+                  onClick={() => handleAction('Medir hemoglucotest capilar rápido (HGT)')}
+                  className="p-2 rounded-lg bg-cyan-950/70 hover:bg-cyan-900/90 active:scale-95 text-cyan-200 border border-cyan-700/60 transition flex flex-col items-center justify-center text-center gap-0.5 shadow-sm"
+                  title="Punción capilar para medición inmediata de glicemia (descarta hipoglicemia como causa reversible)"
+                >
+                  <span className="text-sm">🩸</span>
+                  <span className="text-xs font-bold font-mono">Medir HGT</span>
+                  <span className="text-[9px] text-cyan-400/80 font-mono">Glucemia</span>
+                </button>
               </>
             )}
 
@@ -1256,6 +1267,22 @@ export default function CommandConsole({
                 </div>
                 <span className="text-[10px] text-slate-300 mt-0.5">
                   Acidosis metabólica severa preexistente, hiperpotasemia o intoxicación por antidepresivos tricíclicos.
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  handleAction('Administrar Suero Glucosado al 50% IV en bolo (25 g Dextrosa)');
+                  setShowOtherDrugsMenu(false);
+                }}
+                className="w-full p-2.5 rounded-xl bg-slate-900/80 hover:bg-indigo-950 border border-slate-700 hover:border-indigo-400 text-left transition flex flex-col"
+              >
+                <div className="flex items-center justify-between text-indigo-300 font-bold text-sm">
+                  <span>🩸 Glucosa al 50% IV (25 g Dextrosa Bolo)</span>
+                  <span className="text-[10px] text-emerald-400 font-normal">Hipoglicemia / 5H</span>
+                </div>
+                <span className="text-[10px] text-slate-300 mt-0.5">
+                  Corrección rápida de hipoglicemia aguda severa (&lt; 70 mg/dL) o coma hipoglicémico.
                 </span>
               </button>
             </div>

@@ -18,7 +18,11 @@ export default function VitalSignsSidebar({
   isAirwaySecured = false,
   phase = 'initial',
   hasDeclaredArrestRhythm = false,
-  studentDiagnosedRhythm = null
+  studentDiagnosedRhythm = null,
+  glucoseMgDl = 110,
+  hasMeasuredHgt = false,
+  isMeasuringHgt = false,
+  onTriggerHgt = () => {}
 }) {
   const [showO2Menu, setShowO2Menu] = React.useState(false);
 
@@ -257,6 +261,58 @@ export default function VitalSignsSidebar({
           </div>
         </div>
 
+        {/* 6. Hemoglucotest (HGT) en tiempo real */}
+        <div className="bg-[#0E1726] border border-cyan-900/50 rounded-lg p-1.5 shadow-sm">
+          <div className="flex items-center justify-between text-xs text-cyan-300 font-mono font-semibold">
+            <span className="flex items-center gap-1.5">
+              <span className="text-rose-400 text-xs">🩸</span>
+              HGT / Glucemia
+            </span>
+            <button
+              onClick={onTriggerHgt}
+              disabled={isMeasuringHgt}
+              className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold transition flex items-center gap-1 ${
+                isMeasuringHgt
+                  ? 'bg-cyan-500/30 text-cyan-200 animate-pulse border border-cyan-400/50'
+                  : hasMeasuredHgt
+                  ? 'bg-cyan-950/80 hover:bg-cyan-900 text-cyan-200 border border-cyan-700/60'
+                  : 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border border-emerald-600/70 animate-pulse'
+              }`}
+              title="Tomar hemoglucotest capilar rápido con glucómetro Accu-Chek"
+            >
+              <Play className="w-2.5 h-2.5 fill-current" />
+              {isMeasuringHgt ? 'PUNCIÓN...' : hasMeasuredHgt ? 'CONTROL' : 'MEDIR HGT'}
+            </button>
+          </div>
+          <div className="flex items-baseline justify-between mt-0.5">
+            <div className="flex items-baseline gap-1">
+              <span className={`text-2xl font-black font-mono tracking-tight ${
+                !hasMeasuredHgt
+                  ? 'text-slate-600'
+                  : glucoseMgDl < 70
+                  ? 'text-rose-400'
+                  : glucoseMgDl > 250
+                  ? 'text-amber-400'
+                  : 'text-cyan-300'
+              }`}>
+                {isMeasuringHgt ? '...' : hasMeasuredHgt ? glucoseMgDl : '--'}
+              </span>
+              <span className="text-[10px] text-cyan-400/80 font-mono">mg/dL</span>
+            </div>
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border font-bold ${
+              !hasMeasuredHgt
+                ? 'bg-slate-900 border-slate-800 text-slate-500'
+                : glucoseMgDl < 70
+                ? 'bg-rose-950/90 border-rose-600 text-rose-300 animate-pulse'
+                : glucoseMgDl > 250
+                ? 'bg-amber-950/90 border-amber-600 text-amber-300'
+                : 'bg-emerald-950/80 border-emerald-700 text-emerald-300'
+            }`}>
+              {!hasMeasuredHgt ? 'NO MEDIDO' : glucoseMgDl < 70 ? 'HIPOGLICEMIA' : glucoseMgDl > 250 ? 'HIPERGLICEMIA' : 'NORMAL'}
+            </span>
+          </div>
+        </div>
+
       </div>
 
       {/* Target Metas ACLS */}
@@ -264,6 +320,7 @@ export default function VitalSignsSidebar({
         <div>PAM Meta: &gt; 65 mmHg</div>
         <div>SaO2 Meta: 92 - 98% (Normoxia)</div>
         <div>EtCO2 Meta: 35 - 40 mmHg</div>
+        <div>Glucemia Meta: 70 - 180 mg/dL</div>
       </div>
     </div>
   );

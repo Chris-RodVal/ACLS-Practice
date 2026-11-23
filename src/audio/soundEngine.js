@@ -98,7 +98,7 @@ class ClinicalSoundEngine {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
   }
 
@@ -599,6 +599,87 @@ class ClinicalSoundEngine {
         osc.start(t);
         osc.stop(t + 0.11);
       });
+    } catch (e) {}
+  }
+
+  // Glucometer Measurement Sound (Doble tono agudo característico de lectura de tira reactiva HGT)
+  playGlucometerBeep() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      // Primer tono: 1600 Hz por 70ms
+      const osc1 = this.ctx.createOscillator();
+      const gain1 = this.ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(1600, now);
+      gain1.gain.setValueAtTime(0.001, now);
+      gain1.gain.linearRampToValueAtTime(0.18, now + 0.01);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      osc1.connect(gain1);
+      gain1.connect(this.ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.075);
+
+      // Segundo tono confirmatorio más agudo: 2100 Hz a los 110ms
+      const t2 = now + 0.11;
+      const osc2 = this.ctx.createOscillator();
+      const gain2 = this.ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(2100, t2);
+      gain2.gain.setValueAtTime(0.001, t2);
+      gain2.gain.linearRampToValueAtTime(0.22, t2 + 0.01);
+      gain2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.14);
+      osc2.connect(gain2);
+      gain2.connect(this.ctx.destination);
+      osc2.start(t2);
+      osc2.stop(t2 + 0.15);
+    } catch (e) {}
+  }
+
+  // Cardioversion Sync Marker Beep (Tono agudo sincronizado con la onda R)
+  playSyncBeep() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1550, now);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    } catch (e) {}
+  }
+
+  // Tactile Equipment Button Click
+  playButtonClick() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(950, now);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.08, now + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.035);
     } catch (e) {}
   }
 }

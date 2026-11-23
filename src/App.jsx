@@ -16,6 +16,15 @@ import RhythmDiagnosisModal from './components/RhythmDiagnosisModal';
 import ClinicalExamModal from './components/ClinicalExamModal';
 import { BookOpen, Stethoscope, RefreshCw, Award, Volume2, VolumeX, ShieldAlert, HeartPulse, Dices, Key, Bot, Menu, ChevronDown, ChevronUp, X as CloseIcon } from 'lucide-react';
 
+const extractInitialGlucose = (caseObj) => {
+  const gStr = caseObj?.clinicalExam?.labs?.glucose || '';
+  const match = gStr.match(/(\d+)\s*mg\/dL/i);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+  return 110;
+};
+
 export default function App() {
   // 1. Case & Phase state
   const [currentCase, setCurrentCase] = useState(ACLS_CASES[0]);
@@ -28,6 +37,9 @@ export default function App() {
   const [etco2, setEtco2] = useState(currentCase.initialVitals.etco2);
   const [rr, setRr] = useState(currentCase.initialVitals.rr);
   const [temp, setTemp] = useState(currentCase.initialVitals.temp);
+  const [glucoseMgDl, setGlucoseMgDl] = useState(() => extractInitialGlucose(ACLS_CASES[0]));
+  const [hasMeasuredHgt, setHasMeasuredHgt] = useState(false);
+  const [isMeasuringHgt, setIsMeasuringHgt] = useState(false);
   const [rhythm, setRhythm] = useState(currentCase.initialVitals.rhythm);
   const [rhythmName, setRhythmName] = useState(currentCase.initialVitals.rhythmName);
   const [pulsePresent, setPulsePresent] = useState(true);
@@ -289,6 +301,9 @@ export default function App() {
     setAiScorePreview(null);
     setIsTimerPaused(false);
     setInitialTimeLimit(270); // Reset to 4:30 min for each new case
+    setGlucoseMgDl(extractInitialGlucose(caseObj));
+    setHasMeasuredHgt(false);
+    setIsMeasuringHgt(false);
 
     addLog('Sistema', `Caso iniciado: ${caseObj.title}. Paciente en box de atención.`, 'info');
   };
@@ -685,18 +700,7 @@ export default function App() {
       });
       addLog('POCUS', '🩺 Resolución completa de derrame pericárdico y colapso diastólico post-pericardiocentesis.', 'success');
     } else if (causeId.includes('hipoglicemia') || causeId.includes('glucose')) {
-      setDynamicExam((prev) => {
-        const base = prev || currentCase.clinicalExam || {};
-        return {
-          ...base,
-          labs: {
-            ...(base.labs || {}),
-            glucose: 'HGT: 142 mg/dL (Normoglicemia alcanzada post-bolo glucosa al 50%).',
-            glucoseUpdated: true
-          }
-        };
-      });
-      addLog('Laboratorio', '🧪 HGT de control: 142 mg/dL. Glucemia normalizada tras administración de dextrosa.', 'success');
+      handleAdministerGlucose();
     } else if (causeId.includes('hipotermia') || causeId.includes('hypothermia')) {
       setDynamicExam((prev) => {
         const base = prev || currentCase.clinicalExam || {};
@@ -1062,6 +1066,94 @@ export default function App() {
     soundEngine.speak('Gluconato de calcio administrado. Membrana miocárdica estabilizada.', 'system');
   };
 
+  // 4g. Realizar Hemoglucotest (HGT)
+  const handleCheckHgt = () => {
+    if (isMeasuringHgt) return;
+    setIsMeasuringHgt(true);
+    soundEngine.playButtonClick();
+    addLog('Enfermería', '🩸 Tomando muestra para Hemoglucotest capilar...', 'info');
+
+    setTimeout(() => {
+      setIsMeasuringHgt(false);
+      setHasMeasuredHgt(true);
+      soundEngine.playGlucometerBeep();
+
+      let classification = 'Normoglicemia';
+      let logType = 'success';
+      if (glucoseMgDl < 70) {
+        classification = '¡HIPOGLICEMIA SEVERA! (< 70 mg/dL) Indicación urgente de Glucosa IV';
+        logType = 'error';
+      } else if (glucoseMgDl > 250) {
+        classification = 'Hiperglicemia (> 250 mg/dL)';
+        logType = 'warning';
+      }
+
+      addLog('Laboratorio', `🩸 [HGT CAPILAR]: ${glucoseMgDl} mg/dL (${classification}).`, logType);
+      soundEngine.speak(`Hemoglucotest: ${glucoseMgDl} miligramos por decilitro. ${glucoseMgDl < 70 ? 'Alerta, hipoglicemia severa.' : ''}`, 'system');
+
+      setDynamicExam((prev) => {
+        const base = prev || currentCase.clinicalExam || {};
+        return {
+          ...base,
+          labs: {
+            ...(base.labs || {}),
+            glucose: `HGT: ${glucoseMgDl} mg/dL (${classification})`,
+            glucoseUpdated: true
+          }
+        };
+      });
+    }, 1000);
+  };
+
+  // 4h. Administrar Glucosa / Dextrosa EV
+  const handleAdministerGlucose = (dose = '25 g (50 ml SG 50%)') => {
+    soundEngine.playButtonClick();
+    addLog('Fármacos', `🩸 Administrado bolo de Glucosa hipertónica IV (${dose}). Lavado con 20 ml SF.`, 'info');
+
+    // Elevate dynamic blood glucose realistically
+    const previousGlucose = glucoseMgDl;
+    const delta = 85 + Math.floor(Math.random() * 25); // +85 to +110 mg/dL
+    const newGlucose = Math.min(previousGlucose + delta, 280);
+    setGlucoseMgDl(newGlucose);
+
+    setTimeout(() => {
+      soundEngine.speak('Glucosa hipertónica administrada. Glicemia en ascenso.', 'system');
+
+      const isHypoCase = currentCase.hytCategory.toLowerCase().includes('hipoglicemia') ||
+                         (currentCase.clinicalExam?.labs?.glucose || '').toLowerCase().includes('hipoglicemia') ||
+                         previousGlucose < 70;
+
+      if (isHypoCase) {
+        if (!treatedCauses.includes('hipoglicemia')) {
+          setTreatedCauses((prev) => [...prev, 'hipoglicemia']);
+        }
+        setHasIdentifiedHyt(true);
+        addLog('ACLS', '🎯 ¡Causa reversible tratada!: Hipoglicemia severa corregida oportunamente con glucosa intravenosa.', 'success');
+
+        if (phase === 'initial') {
+          setConsciousness('Despierta progresivamente, responde a la voz y ubica tiempo-espacio (AVPU: V -> A)');
+          setPatientDialogue('Doctor... me sentía desvanecer por completo, ahora se me aclaró la mente.');
+          addLog('Paciente', '🗣️ Paciente recupera el estado de alerta tras corregir la neuroglucopenia.', 'success');
+          soundEngine.speak('Doctor... me siento mucho mejor.', 'patient', currentCase?.patient?.gender);
+        }
+      }
+
+      setDynamicExam((prev) => {
+        const base = prev || currentCase.clinicalExam || {};
+        return {
+          ...base,
+          labs: {
+            ...(base.labs || {}),
+            glucose: `HGT: ${newGlucose} mg/dL (Normoglicemia alcanzada post-bolo Dextrosa al 50%)`,
+            glucoseUpdated: true
+          }
+        };
+      });
+
+      addLog('Laboratorio', `🩸 [HGT DE CONTROL POST-GLUCOSA]: ${newGlucose} mg/dL. Glucemia restaurada a rango fisiológico.`, 'success');
+    }, 800);
+  };
+
   // 5. Evaluación Inteligente con IA
   const handleOpenAiEvaluation = async () => {
     addLog('Sistema', '🤖 Analizando desempeño del líder y equipo de reanimación con Inteligencia Artificial...', 'info');
@@ -1283,6 +1375,14 @@ export default function App() {
 
       case 'GIVE_BICARBONATE':
         handleAdministerBicarbonate();
+        break;
+
+      case 'GIVE_GLUCOSE':
+        handleAdministerGlucose();
+        break;
+
+      case 'CHECK_HGT':
+        handleCheckHgt();
         break;
 
       case 'GIVE_MAGNESIUM':
@@ -1562,6 +1662,10 @@ export default function App() {
             phase={phase}
             hasDeclaredArrestRhythm={hasDeclaredArrestRhythm}
             studentDiagnosedRhythm={studentDiagnosedRhythm}
+            glucoseMgDl={glucoseMgDl}
+            hasMeasuredHgt={hasMeasuredHgt}
+            isMeasuringHgt={isMeasuringHgt}
+            onTriggerHgt={handleCheckHgt}
           />
         </div>
 

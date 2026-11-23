@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { soundEngine } from '../audio/soundEngine';
 
 /**
  * High-Fidelity Clinical Oscilloscope Monitor Canvas
@@ -183,8 +184,11 @@ export default function MonitorCanvas({
           s.currentBeatDuration = 60 / currentHr;
         }
 
-        // Trigger audible QRS beep on beat onset
+        // Trigger audible QRS beep on beat onset (and sync blip if cardioversion sync is on)
         if (p.pulsePresent || ['TV_MONOMORFA', 'TSVP', 'FA_RVR', 'FLUTTER', 'SINUSAL', 'SINUSAL_BRADI', 'BRADICARDIA_SINUSAL', 'BAV_3', 'BAV_2_MOBITZ_2'].includes(p.rhythm)) {
+          if (p.isSync) {
+            soundEngine.playSyncBeep();
+          }
           if (p.onQRSBeat) p.onQRSBeat(p.spo2);
         }
       }

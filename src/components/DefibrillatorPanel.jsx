@@ -37,7 +37,11 @@ export default function DefibrillatorPanel({
             {energyOptions.map((j) => (
               <button
                 key={j}
-                onClick={() => onSelectJoules(j)}
+                onClick={() => {
+                  soundEngine.init();
+                  soundEngine.playButtonClick();
+                  onSelectJoules(j);
+                }}
                 className={`px-2.5 py-1 text-xs font-mono font-bold rounded transition ${
                   joules === j
                     ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
@@ -56,7 +60,11 @@ export default function DefibrillatorPanel({
             CARDIOVERSIÓN
           </span>
           <button
-            onClick={onToggleSync}
+            onClick={() => {
+              soundEngine.init();
+              soundEngine.playButtonClick();
+              onToggleSync();
+            }}
             className={`mt-1 px-3 py-1.5 rounded font-mono text-xs font-bold transition flex items-center gap-1.5 border ${
               isSync
                 ? 'bg-sky-500 text-slate-950 border-sky-300 shadow-md shadow-sky-500/40'

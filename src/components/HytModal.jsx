@@ -50,6 +50,14 @@ export default function HytModal({
       actionText: 'Iniciar Recalentamiento Activo Central y Sueros Tibios',
       icon: Thermometer,
       isCorrectForCase: currentCase?.hytCategory?.toLowerCase().includes('hipotermia')
+    },
+    {
+      id: 'hipoglicemia',
+      name: 'Hipoglicemia Severa',
+      desc: 'Glucemia capilar < 60 mg/dL, diaforesis fría, neuroglucopenia extrema o coma.',
+      actionText: 'Administrar Bolo de Glucosa al 50% IV (25 g Dextrosa) / Suero Glucosado',
+      icon: Syringe,
+      isCorrectForCase: currentCase?.hytCategory?.toLowerCase().includes('hipoglicemia') || currentCase?.clinicalExam?.labs?.glucose?.toLowerCase().includes('hipoglicemia')
     }
   ];
 

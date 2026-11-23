@@ -103,6 +103,12 @@ export function parseClinicalCommand(input) {
   if (text.includes('noradrenalina') || text.includes('norepinefrina') || text.includes('dopamina') || text.includes('vasopresor')) {
     return { action: 'GIVE_VASOPRESSOR', dose: '0.1-0.5 mcg/kg/min', raw };
   }
+  if (text.includes('glucosa') || text.includes('dextrosa') || text.includes('glucosado') || text.includes('sg50') || text.includes('sg 50') || text.includes('sg30') || text.includes('sg10')) {
+    return { action: 'GIVE_GLUCOSE', raw };
+  }
+  if (text.includes('hgt') || text.includes('hemogluco') || text.includes('dextrotix') || text.includes('dextro') || text.includes('medir glucosa') || text.includes('tomar glucosa') || text.includes('glicemia') || text.includes('glucemia')) {
+    return { action: 'CHECK_HGT', raw };
+  }
   if (text.includes('suero') || text.includes('cristaloide') || text.includes('fisiologico') || text.includes('ringer') || text.includes('volumen') || text.includes('carga') || text.includes('solucion salina') || text.includes('sf') || text.includes('hartmann') || text.includes('lactato')) {
     const isRinger = text.includes('ringer') || text.includes('hartmann') || text.includes('lactato');
     const fluidType = isRinger ? 'ringer' : 'saline';
