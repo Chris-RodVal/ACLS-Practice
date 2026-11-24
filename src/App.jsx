@@ -129,8 +129,8 @@ export default function App() {
   // Main 1-second simulation tick
   useEffect(() => {
     const interval = setInterval(() => {
-      // If the phase-1 timer is manually paused by the instructor, don't increment elapsed
-      if (phase === 'initial' && isTimerPaused) return;
+      // Universal simulation pause (instructor / analysis)
+      if (isTimerPaused) return;
 
       setElapsedSeconds((prev) => prev + 1);
 
@@ -200,13 +200,13 @@ export default function App() {
 
   // Metronome for CPR at 110 cpm
   useEffect(() => {
-    if (isCprActive) {
+    if (isCprActive && !isTimerPaused) {
       soundEngine.startMetronome();
     } else {
       soundEngine.stopMetronome();
     }
     return () => soundEngine.stopMetronome();
-  }, [isCprActive]);
+  }, [isCprActive, isTimerPaused]);
 
   // Audio QRS beat callback — beep for ANY organized rhythm (pulse or not)
   // Only silent rhythms: FV, FV_FINA, FV_GRUESA, ASISTOLIA (no organized QRS)
@@ -378,7 +378,7 @@ export default function App() {
         addLog('Docente Evaluador', '🏆 ¡SIMULACIÓN CLÍNICA ACLS COMPLETADA CON ÉXITO! Has ejecutado el algoritmo ACLS en su totalidad: Manejo de Arritmia Inicial ➔ Reanimación en Paro Cardíaco ➔ RCE ➔ Cuidados Posparo Completos (PA, ECG 12D, MET y Derivación). Procediendo a la Pauta de Evaluación Oficial.', 'success');
         setAnnouncement('🏆 ¡CASO Y ALGORITMO ACLS COMPLETADOS CON ÉXITO! Has estabilizado al paciente y completado todos los cuidados posparo según pauta (PA, ECG 12D, MET y Derivación).');
         setTimeout(() => {
-          handleOpenEvaluation();
+          handleOpenAiEvaluation();
         }, 2200);
       }
     }
@@ -405,7 +405,7 @@ export default function App() {
     addLog('Docente Evaluador', `💀 ¡EL PACIENTE HA FALLECIDO! Razón: ${reason}. La reanimación ha fracasado. Desplegando Pauta de Cotejo y Nota final.`, 'error');
     setAnnouncement(`💀 PACIENTE FALLECIDO: ${reason}. Simulación finalizada.`);
     setTimeout(() => {
-      handleOpenEvaluation();
+      handleOpenAiEvaluation();
     }, 2500);
   };
 
@@ -1154,6 +1154,21 @@ export default function App() {
     }, 800);
   };
 
+  // Toggle universal simulation pause with audio and log feedback
+  const handleTogglePause = () => {
+    setIsTimerPaused((prev) => {
+      const next = !prev;
+      if (next) {
+        soundEngine.stopMetronome();
+        addLog('Instructor', '⏸️ Simulación pausada. Tiempo y progresión clínica detenidos para análisis docente.', 'warning');
+      } else {
+        if (isCprActive) soundEngine.startMetronome();
+        addLog('Instructor', '▶️ Simulación reanudada. El tiempo y la evolución continúan.', 'info');
+      }
+      return next;
+    });
+  };
+
   // 5. Evaluación Inteligente con IA
   const handleOpenAiEvaluation = async () => {
     addLog('Sistema', '🤖 Analizando desempeño del líder y equipo de reanimación con Inteligencia Artificial...', 'info');
@@ -1165,12 +1180,14 @@ export default function App() {
       phase,
       elapsedSeconds,
       cprCyclesCompleted,
+      isCprActive,
       shockCount,
       adrenalineCount,
       amiodaroneCount,
       hasGivenAtropine,
       hasGivenVolume: hasGivenVolume || infusedVolumeMl > 0,
       hasIdentifiedHyt,
+      treatedCauses,
       has12Lead,
       hasTtm,
       hasCheckedBp,
@@ -1181,6 +1198,8 @@ export default function App() {
       hasGivenOxygen,
       hasAchievedRce,
       hasReferred,
+      consciousness,
+      studentDiagnosedRhythm,
       isShockable: currentCase.isShockable
     }, currentCase);
 
@@ -1462,12 +1481,14 @@ export default function App() {
       phase,
       elapsedSeconds,
       cprCyclesCompleted,
+      isCprActive,
       shockCount,
       adrenalineCount,
       amiodaroneCount,
       hasGivenAtropine,
       hasGivenVolume: hasGivenVolume || infusedVolumeMl > 0,
       hasIdentifiedHyt,
+      treatedCauses,
       has12Lead,
       hasTtm,
       hasCheckedBp,
@@ -1478,6 +1499,8 @@ export default function App() {
       hasGivenOxygen,
       hasAchievedRce,
       hasReferred,
+      consciousness,
+      studentDiagnosedRhythm,
       isShockable: currentCase.isShockable
     }, currentCase);
 
@@ -1510,18 +1533,34 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Pauta de Cotejo y Nota EXCLUSIVAMENTE al final del caso */}
-            {(isSimulationCompleted || phase === 'dead') && (
+            {/* Botón Universal Pausa / Reanudar */}
+            <button
+              onClick={handleTogglePause}
+              className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1.5 border transition ${
+                isTimerPaused
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-300 shadow-md shadow-amber-500/30 animate-pulse'
+                  : 'bg-[#131D31] hover:bg-slate-800 text-slate-300 border-slate-700'
+              }`}
+              title={isTimerPaused ? 'Reanudar simulación' : 'Pausar simulación para análisis o docencia'}
+            >
+              <span>{isTimerPaused ? '▶️ Reanudar' : '⏸️ Pausar'}</span>
+            </button>
+
+            {/* Pauta de Cotejo y Nota (Al pausar o al finalizar el caso) */}
+            {(isSimulationCompleted || phase === 'dead' || isTimerPaused) && (
               <button
                 onClick={handleOpenAiEvaluation}
-                className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-md transition border animate-pulse ${
+                className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-md transition border ${
                   phase === 'dead'
-                    ? 'bg-rose-900 hover:bg-rose-800 text-rose-100 border-rose-500'
-                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-400/30'
+                    ? 'bg-rose-900 hover:bg-rose-800 text-rose-100 border-rose-500 animate-pulse'
+                    : isTimerPaused
+                    ? 'bg-amber-600 hover:bg-amber-500 text-slate-950 border-amber-400 font-extrabold'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-400/30 animate-pulse'
                 }`}
+                title="Ver pauta de cotejo y evaluación docente"
               >
                 <Award className="w-3.5 h-3.5" />
-                <span>{phase === 'dead' ? '💀 Ver Pauta' : '🏆 Pauta & Nota'}</span>
+                <span>{phase === 'dead' ? '💀 Ver Pauta' : isTimerPaused ? '📋 Evaluar en Pausa' : '🏆 Pauta & Nota'}</span>
                 {aiScorePreview && (
                   <span className="bg-slate-900/80 px-1 py-0.2 rounded text-[9px] text-yellow-300">
                     {aiScorePreview}
@@ -1613,9 +1652,9 @@ export default function App() {
         oxygenDevice={oxygenDevice}
         isCprActive={isCprActive}
         pulsePresent={pulsePresent}
-        onOpenEvaluation={handleOpenEvaluation}
+        onOpenEvaluation={handleOpenAiEvaluation}
         onForceArrest={triggerCardiacArrest}
-        onTogglePauseTimer={() => setIsTimerPaused(p => !p)}
+        onTogglePauseTimer={handleTogglePause}
         onAddInitialTime={() => setInitialTimeLimit(p => p + 60)}
         onLogInteraction={addLog}
       />

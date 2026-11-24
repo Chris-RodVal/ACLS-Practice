@@ -87,31 +87,80 @@ const REAL_ECG_MAP = {
   NSTEMI: [
     { src: './ecg/NSTMI 1.png', label: 'NSTEMI (Infradesnivel ST) 1' },
     { src: './ecg/NSTEMI 2.png', label: 'NSTEMI 2' }
+  ],
+  RITMO_SINUSAL: [
+    { src: './ecg/Bradicardia sinusal.png', label: 'Ritmo Sinusal Normal (Conducción AV 1:1, ST Isoeléctrico)' }
+  ],
+  SINUSAL: [
+    { src: './ecg/Bradicardia sinusal.png', label: 'Ritmo Sinusal Normal' }
+  ],
+  TAQUICARDIA_SINUSAL: [
+    { src: './ecg/Bradicardia sinusal.png', label: 'Taquicardia Sinusal (Ondas P normales, ST Isoeléctrico)' }
+  ],
+  BLOQUEO_AV_3: [
+    { src: './ecg/BAV2 Mobitz II.png', label: 'Bloqueo AV Completo (Disociación AV)' }
+  ],
+  FA_PREEXCITADA: [
+    { src: './ecg/TV P 1.png', label: 'Fibrilación Auricular Preexcitada (WPW - FBI)' }
+  ],
+  RITMO_MARCAPASOS: [
+    { src: './ecg/TV M 1.png', label: 'Ritmo Estimulado por Marcapasos (Espigas ventriculares)' }
+  ],
+  PACED: [
+    { src: './ecg/TV M 1.png', label: 'Ritmo de Marcapasos con Captura' }
+  ],
+  FLUTTER_AURICULAR: [
+    { src: './ecg/Flutter_1.png', label: 'Flutter Auricular (Dientes de Sierra) 1' },
+    { src: './ecg/Flutter_2.png', label: 'Flutter Auricular 2' }
+  ],
+  TAQUICARDIA_SUPRAVENTRICULAR: [
+    { src: './ecg/TSV 1.png', label: 'TSV Tira 1' },
+    { src: './ecg/TSV 2.jpeg', label: 'TSV Tira 2' }
+  ],
+  FIBRILACION_AURICULAR: [
+    { src: './ecg/FA_rapida_1.jpg', label: 'Fibrilación Auricular 1' },
+    { src: './ecg/FA_rapida_2.jpeg', label: 'Fibrilación Auricular 2' }
   ]
 };
 
 // Helper to accurately classify STEMI territory from case data and rhythm
 export function detectStemiType(currentCase, rhythm, phase) {
+  const activeRhythm = phase === 'post_rce'
+    ? (currentCase?.rceVitals?.rhythm || '')
+    : (rhythm || currentCase?.initialVitals?.rhythm || '');
+
+  const activeRhythmName = phase === 'post_rce'
+    ? (currentCase?.rceVitals?.rhythmName || '')
+    : (currentCase?.initialVitals?.rhythmName || '');
+
+  // Verify if this case actually has a STEMI / Supradesnivel ST
+  const isStemiCase = activeRhythm === 'SINUSAL_ST_ELEVATION' ||
+                      activeRhythm.includes('STEMI') ||
+                      activeRhythmName.toLowerCase().includes('stemi') ||
+                      activeRhythmName.toLowerCase().includes('supradesnivel');
+
+  if (!isStemiCase) {
+    return 'NONE';
+  }
+
   const text = [
+    activeRhythmName,
+    activeRhythm,
     currentCase?.title || '',
-    currentCase?.hytCategory || '',
     currentCase?.reversibleCause || '',
-    currentCase?.rceVitals?.rhythmName || '',
-    currentCase?.rceVitals?.rhythm || '',
-    currentCase?.initialVitals?.rhythmName || '',
-    currentCase?.initialVitals?.rhythm || '',
-    rhythm || '',
-    currentCase?.patient?.presentation || '',
-    currentCase?.physicalExam?.cardiac || '',
-    currentCase?.physicalExam?.others || ''
+    currentCase?.hytCategory || ''
   ].join(' ').toLowerCase();
 
-  const isInferior = text.includes('inferior') || text.includes('dii, diii') || text.includes('d2, d3') || text.includes('diafragm');
-  const isAnterolateral = text.includes('anterolateral') || text.includes('anterior') || text.includes('v1-v6') || text.includes('v2-v4');
+  // Anterolateral / Anterior / V1-V6 / Tronco
+  if (text.includes('anterolateral') || text.includes('anterior') || text.includes('v1-v6') || text.includes('v1 a v6') || text.includes('v2-v4') || text.includes('tronco')) {
+    return 'ANTEROLATERAL';
+  }
+  // Inferior / DII, DIII, aVF
+  if (text.includes('inferior') || text.includes('dii') || text.includes('diii') || text.includes('avf')) {
+    return 'INFERIOR';
+  }
 
-  if (isInferior) return 'INFERIOR';
-  if (isAnterolateral) return 'ANTEROLATERAL';
-  return 'INFERIOR'; // Default fallback
+  return 'INFERIOR';
 }
 
 export default function TwelveLeadModal({ isOpen, onClose, currentCase, phase, rhythm }) {
@@ -127,9 +176,13 @@ export default function TwelveLeadModal({ isOpen, onClose, currentCase, phase, r
     }
     if (phase === 'post_rce') {
       const stemiType = detectStemiType(currentCase, rhythm, phase);
-      return stemiType === 'INFERIOR'
-        ? 'RCE Posparo: STEMI Inferior (Supradesnivel DII, DIII, aVF) ➔ Hemodinamia'
-        : 'RCE Posparo: STEMI Anterolateral (Supradesnivel V1-V6, DI, aVL) ➔ Hemodinamia';
+      if (stemiType === 'INFERIOR') {
+        return 'RCE Posparo: STEMI Inferior (Supradesnivel DII, DIII, aVF) ➔ Hemodinamia Inmediata';
+      }
+      if (stemiType === 'ANTEROLATERAL') {
+        return 'RCE Posparo: STEMI Anterolateral Extenso (Supradesnivel V1-V6, DI, aVL) ➔ Hemodinamia Inmediata';
+      }
+      return `RCE Posparo: ${currentCase?.rceVitals?.rhythmName || 'Ritmo Sinusal (Sin elevación del ST)'} ➔ Traslado a UCI`;
     }
     return currentCase?.initialVitals?.rhythmName || rhythm || 'Arritmia Inicial';
   };
@@ -140,12 +193,15 @@ export default function TwelveLeadModal({ isOpen, onClose, currentCase, phase, r
     }
     if (phase === 'post_rce') {
       const stemiType = detectStemiType(currentCase, rhythm, phase);
-      return stemiType === 'INFERIOR' ? 'STEMI_INFERIOR' : 'STEMI_ANTEROLATERAL';
+      if (stemiType === 'INFERIOR') return 'STEMI_INFERIOR';
+      if (stemiType === 'ANTEROLATERAL') return 'STEMI_ANTEROLATERAL';
+      const rceRhythm = currentCase?.rceVitals?.rhythm || 'RITMO_SINUSAL';
+      return rceRhythm;
     }
     const baseRhythm = rhythm || currentCase?.initialVitals?.rhythm || 'TV_MONOMORFA';
     if (baseRhythm === 'SINUSAL_ST_ELEVATION' || baseRhythm.includes('STEMI')) {
       const stemiType = detectStemiType(currentCase, rhythm, phase);
-      return stemiType === 'INFERIOR' ? 'STEMI_INFERIOR' : 'STEMI_ANTEROLATERAL';
+      return stemiType === 'ANTEROLATERAL' ? 'STEMI_ANTEROLATERAL' : 'STEMI_INFERIOR';
     }
     return baseRhythm;
   };
@@ -594,9 +650,9 @@ function calculateLeadSample(leadName, p, rhythm, phase, currentCase) {
   }
 
   // STEMI (Infarto con supradesnivel del ST)
-  const isStemi = activeRhythm === 'SINUSAL_ST_ELEVATION' || activeRhythm.includes('STEMI') || phase === 'post_rce';
+  const stemiType = detectStemiType(currentCase, rhythm, phase);
+  const isStemi = stemiType !== 'NONE';
   if (isStemi) {
-    const stemiType = detectStemiType(currentCase, rhythm, phase);
     let y = 0;
 
     // Onda P normal

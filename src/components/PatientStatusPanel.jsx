@@ -83,13 +83,18 @@ export default function PatientStatusPanel({
         </div>
 
         {/* Tiempos y Botón de Pauta */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
           {/* Reloj general */}
-          <div className="bg-[#0C1424] border border-slate-700/80 px-2.5 py-1 rounded-lg flex items-center gap-2 font-mono">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <div className={`border px-2.5 py-1 rounded-lg flex items-center gap-2 font-mono ${
+            isTimerPaused ? 'bg-amber-950/40 border-amber-500 text-amber-300' : 'bg-[#0C1424] border-slate-700/80 text-slate-200'
+          }`}>
+            <Clock className={`w-3.5 h-3.5 ${isTimerPaused ? 'text-amber-400 animate-pulse' : 'text-slate-400'}`} />
             <div>
-              <div className="text-[8px] text-slate-400 uppercase">Tiempo</div>
-              <div className="text-xs font-bold text-slate-200">{formatTime(elapsedSeconds)}</div>
+              <div className="text-[8px] uppercase flex items-center gap-1">
+                <span className={isTimerPaused ? 'text-amber-400 font-bold' : 'text-slate-400'}>Tiempo</span>
+                {isTimerPaused && <span className="text-amber-400 text-[8px] font-bold animate-pulse">[PAUSA]</span>}
+              </div>
+              <div className="text-xs font-bold">{formatTime(elapsedSeconds)}</div>
             </div>
           </div>
 
@@ -137,11 +142,51 @@ export default function PatientStatusPanel({
                 : 'bg-[#0C1424] border-amber-600/60 text-amber-300'
             }`}>
               <div>
-                <div className="text-[8px] uppercase">Ciclo RCP</div>
+                <div className="text-[8px] uppercase flex items-center gap-1">
+                  <span>Ciclo RCP</span>
+                  {isTimerPaused && <span className="text-amber-400 font-bold animate-pulse">[PAUSADO]</span>}
+                </div>
                 <div className="text-xs font-bold">{formatTime(cprCycleSeconds)} / 02:00</div>
               </div>
+              <button
+                onClick={onTogglePauseTimer}
+                className="text-[9px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/50 px-1.5 py-0.5 rounded transition font-bold ml-1"
+                title={isTimerPaused ? 'Reanudar ciclo de RCP' : 'Pausar simulación para análisis docente'}
+              >
+                {isTimerPaused ? '▶️ Seguir' : '⏸️ Pausar'}
+              </button>
             </div>
           )}
+
+          {/* Posparo RCE */}
+          {phase === 'post_rce' && (
+            <div className="bg-emerald-950/50 border border-emerald-600/60 px-2.5 py-1 rounded-lg flex items-center gap-2 font-mono">
+              <div>
+                <div className="text-[8px] text-emerald-400 uppercase flex items-center gap-1">
+                  <span>Posparo RCE</span>
+                  {isTimerPaused && <span className="text-amber-400 font-bold animate-pulse">[PAUSADO]</span>}
+                </div>
+                <div className="text-xs font-bold text-emerald-200">Estable</div>
+              </div>
+              <button
+                onClick={onTogglePauseTimer}
+                className="text-[9px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/50 px-1.5 py-0.5 rounded transition font-bold ml-1"
+                title={isTimerPaused ? 'Reanudar tiempo posparo' : 'Pausar simulación para análisis docente'}
+              >
+                {isTimerPaused ? '▶️ Seguir' : '⏸️ Pausar'}
+              </button>
+            </div>
+          )}
+
+          {/* Botón Pauta de Cotejo Oficial ACLS */}
+          <button
+            onClick={onOpenEvaluation}
+            className="bg-emerald-800/80 hover:bg-emerald-700 text-emerald-100 border border-emerald-500/50 text-[11px] font-mono font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition active:scale-95 shadow-sm ml-auto sm:ml-0"
+            title="Abrir Pauta de Evaluación Oficial ACLS para retroalimentación"
+          >
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />
+            <span>Pauta ACLS</span>
+          </button>
         </div>
 
       </div>

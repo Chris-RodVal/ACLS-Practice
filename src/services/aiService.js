@@ -480,22 +480,22 @@ function generateLocalAiEvaluation(currentCase, eventLogs, actionsTaken, critica
   const hasShocked = simulationState.shockCount > 0;
   const hasAdrenaline = simulationState.adrenalineCount > 0;
   const hasAmiodarone = simulationState.amiodaroneCount > 0;
-  const hasAirway = simulationState.hasSecuredAirway || simulationState.isOxygenAdministered || simulationState.hasGivenOxygen;
-  const has12Lead = simulationState.has12Lead;
-  const hasOxygen = simulationState.isOxygenAdministered || simulationState.hasGivenOxygen;
-  const hasVolume = simulationState.hasGivenVolume || (simulationState.infusedVolumeMl && simulationState.infusedVolumeMl > 0);
-  const hasAchievedRce = simulationState.hasAchievedRce;
-  const hasTtm = simulationState.hasTtm;
-  const hasReferred = simulationState.hasReferred;
+  const hasAirway = simulationState.hasSecuredAirway || simulationState.isOxygenAdministered || simulationState.hasGivenOxygen || actionsTaken.some(a => ['GIVE_OXYGEN', 'START_INTUBATION'].includes(a.type));
+  const has12Lead = simulationState.has12Lead || actionsTaken.some(a => a.type === 'ORDER_12_LEAD');
+  const hasOxygen = simulationState.isOxygenAdministered || simulationState.hasGivenOxygen || actionsTaken.some(a => a.type === 'GIVE_OXYGEN');
+  const hasVolume = simulationState.hasGivenVolume || (simulationState.infusedVolumeMl && simulationState.infusedVolumeMl > 0) || simulationState.hasIdentifiedHyt || actionsTaken.some(a => ['GIVE_FLUIDS', 'GIVE_GLUCOSE', 'GIVE_CALCIUM', 'GIVE_BICARBONATE'].includes(a.type));
+  const hasAchievedRce = simulationState.hasAchievedRce || simulationState.phase === 'post_rce';
+  const hasTtm = simulationState.hasTtm || actionsTaken.some(a => a.type === 'INITIATE_TTM') || simulationState.isConsciousPatient;
+  const hasReferred = simulationState.hasReferred || actionsTaken.some(a => a.type === 'REFER_PATIENT');
 
   let totalPoints = 0;
   let maxPoints = 14;
 
   if (hasAssignedRoles) totalPoints += 1.5;
   if (hasOxygen) totalPoints += 1;
-  if (simulationState.cprCyclesCompleted >= 1 || actionsTaken.some(a => a.type === 'START_CPR')) totalPoints += 1.5;
+  if (simulationState.cprCyclesCompleted >= 1 || actionsTaken.some(a => a.type === 'START_CPR') || simulationState.isCprActive || hasAchievedRce) totalPoints += 1.5;
   if (currentCase.isShockable ? hasShocked : !hasShocked) totalPoints += 1.5;
-  if (hasAdrenaline) totalPoints += 1;
+  if (hasAdrenaline || (currentCase.isShockable && hasAchievedRce && simulationState.shockCount <= 1)) totalPoints += 1;
   if (hasAirway) totalPoints += 1;
   if (hasVolume || simulationState.hasIdentifiedHyt) totalPoints += 1;
   if (hasAchievedRce) totalPoints += 2;
@@ -503,8 +503,9 @@ function generateLocalAiEvaluation(currentCase, eventLogs, actionsTaken, critica
   if (hasTtm) totalPoints += 1;
   if (hasReferred) totalPoints += 1;
 
-  // Penalty for critical errors
-  const penalty = Math.min(3.0, criticalErrors.length * 1.0);
+  // Penalty for unique critical errors only
+  const uniqueCriticalErrors = [...new Set(criticalErrors)];
+  const penalty = Math.min(3.0, uniqueCriticalErrors.length * 1.0);
   const scorePercent = Math.max(10, Math.min(100, Math.round(((totalPoints / maxPoints) * 100) - (penalty * 10))));
 
   // Chilean 1.0 - 7.0 scale with 60% pass threshold (grade 4.0)
@@ -515,7 +516,7 @@ function generateLocalAiEvaluation(currentCase, eventLogs, actionsTaken, critica
     grade = 1.0 + (scorePercent / 60) * 3.0;
   }
   grade = Math.max(1.0, Math.min(7.0, Math.round(grade * 10) / 10));
-  const isPassed = grade >= 4.0 && criticalErrors.length === 0;
+  const isPassed = grade >= 4.0 && uniqueCriticalErrors.length <= 1;
 
   // Mini Informe Clínico Exhaustivo Resumido
   const reportSections = [
