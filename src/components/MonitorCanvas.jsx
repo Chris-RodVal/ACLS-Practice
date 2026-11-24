@@ -455,9 +455,11 @@ function getECGValue(rhythm, p, s, isCprActive, isPacingActive, ecgGain = 1.0, t
     }
 
     case 'TORSADES': {
-      // Torsades de Pointes (twisting of points: modulación sinusoidal de husos)
-      const envelope = Math.sin(p * Math.PI * 0.8);
-      val = (Math.sin(p * Math.PI * 3.5) * 0.8 + Math.sin(p * Math.PI * 7) * 0.3) * (0.4 + 0.6 * Math.abs(envelope));
+      // Torsades de Pointes (TV Polimorfa con torsión helicoidal de las puntas sobre la línea isoeléctrica):
+      // Frecuencia 200-250 lpm, rotación del eje eléctrico con husos que crecen, se estrechan en nodos
+      // y se invierten periódicamente (spindle-and-node pattern característico).
+      const nowSec = performance.now() * 0.001;
+      val = getTorsadesComplex(nowSec, 'II');
       break;
     }
 
@@ -583,6 +585,10 @@ function getECGV5Value(rhythm, p, s, isCprActive, ecgGain = 1.0, timeSinceLastBe
   } else if (rhythm === 'FA_RVR' || rhythm === 'FA') {
     // V5 vector para FA: complexes QRS estrechos con R prominente y f-waves desfasadas
     val = getAfibComplex(timeSinceLastBeat, currentBeatDuration, performance.now() * 0.001 + 0.25, 1.35);
+  } else if (rhythm === 'TORSADES' || (typeof rhythm === 'string' && rhythm.includes('TORSADE'))) {
+    // V5 vector para Torsades de Pointes con rotación espacial tridimensional
+    const nowSec = performance.now() * 0.001;
+    val = getTorsadesComplex(nowSec, 'V5');
   } else if (['TV_MONOMORFA', 'TVSP'].includes(rhythm)) {
     val = getMonomorphicVtComplex(p, true);
   } else {
@@ -650,6 +656,50 @@ function getMonomorphicVtComplex(p, isV5 = false) {
   }
   y += (Math.random() - 0.5) * 0.015;
   return y;
+}
+
+// Torsades de Pointes (TV Polimorfa con torsión helicoidal continua de las puntas):
+// Fisiopatología ACLS:
+// - Frecuencia ventricular rápida (210 - 240 lpm)
+// - Complejos QRS anchos (> 160 ms), abigarrados y pleomórficos
+// - Los ápices ventriculares rotan 360° alrededor de la línea isoeléctrica (fenómeno de husos y nodos)
+// - Ciclo de rotación de ~3.2 a 3.6 segundos: picos positivos van decreciendo a un nodo casi plano (<0.15 mV),
+//   se invierten a picos predominantemente negativos de gran voltaje, decrecen a otro nodo y vuelven a ascender.
+function getTorsadesComplex(nowSec, lead = 'II') {
+  // Frecuencia de rotación helicoidal del eje eléctrico (~0.28 Hz = ~3.5 seg por ciclo de huso completo)
+  const twistRateHz = 0.28;
+  const twistPhase = nowSec * Math.PI * 2 * twistRateHz;
+
+  // Desfase vectorial precordial (V5 vs D2 en el plano espacial)
+  const leadOffset = lead === 'V5' ? 1.25 : 0;
+
+  // Envolvente de polaridad helicoidal (-1.0 a +1.0)
+  // Al pasar por 0 genera el nodo de mínima amplitud y transición de polaridad
+  const rawEnv = Math.sin(twistPhase + leadOffset);
+  const envelope = Math.sign(rawEnv) * Math.pow(Math.abs(rawEnv), 0.78);
+
+  // Frecuencia instantánea de despolarización ventricular rápida (~220 lpm, ~3.67 Hz)
+  const instFreq = 3.67 + Math.sin(twistPhase * 2) * 0.20;
+  const beatAngle = nowSec * Math.PI * 2 * instFreq;
+
+  // Morfología del QRS ancho ventricular con ST-T discordante asimétrico
+  const qrs = Math.sin(beatAngle) * 0.88 +
+              Math.sin(beatAngle * 2 + 0.45) * 0.32 -
+              Math.cos(beatAngle * 3 - 0.25) * 0.14;
+
+  // Modulación de amplitud y polaridad (torsión de los puntos):
+  // La multiplicación por envelope invierte la polaridad (picos hacia arriba vs abajo)
+  // En el nodo, la amplitud decae a un mínimo de ~0.15 mV
+  const nodalFactor = 0.15 + 0.85 * Math.abs(envelope);
+  let val = (qrs * envelope) * 1.30;
+
+  // Muesca pleomórfica de alta frecuencia en la cúspide
+  val += Math.sin(beatAngle * 4) * 0.06 * nodalFactor;
+
+  // Sutil deriva de línea de base y micro-ruido biológico
+  val += Math.sin(nowSec * 1.1) * 0.025 + (Math.random() - 0.5) * 0.025;
+
+  return val;
 }
 
 // AESP Complex — Actividad Eléctrica Sin Pulso

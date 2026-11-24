@@ -511,10 +511,42 @@ function calculateLeadSample(leadName, p, rhythm, phase, currentCase, globalX = 
     return (Math.sin(p * 36) + Math.cos(p * 55)) * 0.12 + (Math.random() - 0.5) * 0.03;
   }
 
-  // 3. TORSADES DE POINTES / TV POLIMORFA
+  // 3. TORSADES DE POINTES / TV POLIMORFA ("Twisting of the points")
   if (activeRhythm === 'TORSADES' || activeRhythm.includes('TORSADE') || activeRhythm === 'TVSP') {
-    const spindle = Math.sin(p * Math.PI * 4) * Math.sin(p * Math.PI);
-    return spindle * 1.25;
+    // Escala temporal de papel ECG: 25 mm/s = 100 píxeles por segundo
+    const t = globalX * 0.01;
+
+    // Frecuencia de rotación del huso helicoidal (~0.28 Hz = ~3.5 seg por ciclo de huso)
+    const twistPhase = t * Math.PI * 2 * 0.28;
+
+    // Desfase vectorial de orientación espacial según derivación
+    let leadOffset = 0;
+    if (leadName.startsWith('V')) {
+      const vNum = parseInt(leadName.slice(1), 10) || 1;
+      leadOffset = 0.22 * vNum;
+    } else if (leadName === 'aVR') {
+      leadOffset = Math.PI;
+    } else if (['III', 'aVF'].includes(leadName)) {
+      leadOffset = 0.45;
+    }
+
+    // Envolvente helicoidal con inversión de polaridad periódica (husos positivos y negativos)
+    const rawEnv = Math.sin(twistPhase + leadOffset);
+    const envelope = Math.sign(rawEnv) * Math.pow(Math.abs(rawEnv), 0.78);
+
+    // Frecuencia instantánea de taquicardia ventricular (~220 lpm, ~3.67 Hz)
+    const instFreq = 3.67 + Math.sin(twistPhase * 2) * 0.20;
+    const beatAngle = t * Math.PI * 2 * instFreq;
+
+    // Morfología del QRS ancho ventricular abigarrado
+    const qrs = Math.sin(beatAngle) * 0.88 +
+                Math.sin(beatAngle * 2 + 0.45) * 0.32 -
+                Math.cos(beatAngle * 3 - 0.25) * 0.14;
+
+    const nodalFactor = 0.15 + 0.85 * Math.abs(envelope);
+    let val = (qrs * envelope) * 1.30;
+    val += Math.sin(beatAngle * 4) * 0.06 * nodalFactor;
+    return val;
   }
 
   // 4. TAQUICARDIA VENTRICULAR MONOMORFA
