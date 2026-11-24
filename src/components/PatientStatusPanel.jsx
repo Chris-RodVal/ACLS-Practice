@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Activity, AlertCircle, Clock, Volume2, ShieldAlert, CheckCircle, HeartCrack, Sparkles } from 'lucide-react';
+import { User, Activity, AlertCircle, Clock, Volume2, ShieldAlert, CheckCircle, HeartCrack, Sparkles, FileText } from 'lucide-react';
 import { soundEngine } from '../audio/soundEngine';
 import PatientAvatarVignette from './PatientAvatarVignette';
 
@@ -217,16 +217,36 @@ export default function PatientStatusPanel({
             : 'bg-[#0A101D] border-slate-800 text-slate-300'
         }`}>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5 text-cyan-400" />
-                Situación Clínica Actual
-              </span>
-              <span className="text-cyan-400 font-semibold">Objetivo Activo</span>
+            {/* Viñeta Clínica Breve del Caso (Siempre Visible) */}
+            <div className="mb-2 pb-2 border-b border-slate-800/80">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-1 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Viñeta Clínica del Caso</span>
+              </div>
+              <p className="leading-snug text-[11px] text-slate-200">
+                <span className="font-bold text-white">{currentCase?.patient.name} ({currentCase?.patient.age}a):</span> {currentCase?.patient.history} — {currentCase?.patient.presentation}
+              </p>
             </div>
-            <p className="leading-relaxed text-[11px] text-slate-200">
-              {announcement || currentCase?.patient.presentation}
-            </p>
+
+            {/* Situación Clínica Actual Dinámica y Objetivo Activo */}
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Situación Clínica Actual</span>
+                </span>
+                <span className="text-cyan-400 font-semibold text-[9px]">Objetivo Activo</span>
+              </div>
+              <p className={`leading-snug text-[11px] font-semibold ${
+                phase === 'arrest'
+                  ? 'text-rose-300'
+                  : phase === 'rce' || phase === 'post_rce'
+                  ? 'text-emerald-300'
+                  : 'text-amber-200'
+              }`}>
+                {announcement || currentCase?.initialVitals?.stabilityReason || 'Evaluar estabilidad hemodinámica del paciente y tratar según algoritmo ACLS.'}
+              </p>
+            </div>
           </div>
 
           {/* Diálogo del Paciente con botón de voz interactivo */}

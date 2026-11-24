@@ -350,6 +350,7 @@ export default function App() {
     setHasAchievedRce(true);
     setIsCprActive(false);
     setPulsePresent(true);
+    soundEngine.stopMetronome();
 
     const rce = currentCase.rceVitals;
     setHr(rce.hr);
@@ -518,14 +519,7 @@ export default function App() {
       setCprCycleSeconds(0);
       setIsCprActive(true);
       soundEngine.startMetronome();
-      addLog('Líder ACLS', '⏱️ ¡REANUDAR RCP DE INMEDIATO! El ciclo de 2 minutos se reinicia a partir de esta descarga.', 'warning');
-
-      // Check if conditions for RCE are met (e.g. after shocks + CPR + drugs)
-      if (shockCount >= 1 && (adrenalineCount >= 1 || amiodaroneCount >= 1)) {
-        setTimeout(() => {
-          triggerRCE();
-        }, 6000);
-      }
+      addLog('Líder ACLS', '⏱️ ¡REANUDAR RCP DE INMEDIATO! Continuar compresiones torácicas durante los 2 minutos completos antes de evaluar ritmo y pulso.', 'warning');
     }
   };
 
@@ -596,39 +590,42 @@ export default function App() {
 
   // Dedicated Check Pulse Only (Does NOT reveal rhythm!)
   const handleCheckPulseOnly = () => {
+    // Si ya estamos en RCE o fase inicial con pulso presente:
+    if (phase === 'post_rce' || phase === 'rce' || (phase === 'initial' && pulsePresent)) {
+      soundEngine.speak('Pulso carotídeo palpable presente.', 'system');
+      addLog('Líder', '🩺 Examen de pulso: ¡PULSO CAROTÍDEO PALPABLE PRESENTE! Paciente con circulación espontánea.', 'success');
+      return;
+    }
+
     if (phase === 'arrest') {
+      // Advertencia pedagógica si se interrumpe la RCP antes de 2 minutos
       if (cprCycleSeconds < 110 && isCprActive) {
         const err = 'Observación crítica: Interrumpió la RCP antes de completar los 2 minutos para chequear pulso. En ACLS las pausas deben ser mínimas (<10s) y sólo al término del ciclo de 2 min.';
         setCriticalErrors((prev) => [...prev, err]);
         addLog('Docente Evaluador', `⚠️ ${err}`, 'warning');
       }
 
-      if (pulsePresent) {
-        soundEngine.speak('Pulso carotídeo palpable presente.', 'system');
-        addLog('Líder', '🩺 Examen de pulso: ¡PULSO CAROTÍDEO PALPABLE PRESENTE! Concordante.', 'success');
-      } else {
-        soundEngine.speak('No se palpa pulso carotídeo. Sin pulso.', 'system');
-        addLog('Líder', '⚠️ Examen de pulso: NO SE PALPA PULSO CAROTÍDEO (Paciente sin pulso).', 'error');
-      }
-
-      // 2-min cycle reset
+      // Reinicio del ciclo de 2 minutos
       if (cprCycleSeconds >= 115) {
         setCprCyclesCompleted((prev) => prev + 1);
         setCprCycleSeconds(0);
       }
 
-      // Check RCE prerequisites:
-      if (!isOxygenAdministered) {
-        addLog('Docente Evaluador', '⚠️ Paciente sin oxigenoterapia ni ventilación adecuada. La hipoxia severa impide el Retorno de Circulación Espontánea.', 'warning');
-        return;
-      }
+      // EVALUAR CRITERIOS DE RCE ANTES DE DECLARAR SI HAY O NO PULSO
+      let willAchieveRce = false;
+      let blockingReason = null;
 
-      if (currentCase.isShockable) {
-        if (shockCount >= 2 && (adrenalineCount >= 1 || amiodaroneCount >= 1)) {
-          triggerRCE();
+      if (!isOxygenAdministered) {
+        blockingReason = 'Paciente sin oxigenoterapia ni ventilación adecuada. La hipoxia severa impide el Retorno de Circulación Espontánea.';
+      } else if (currentCase.isShockable) {
+        // Ritmos desfibrilables (FV / TVSP):
+        if (shockCount >= 1 && (adrenalineCount >= 1 || amiodaroneCount >= 1 || shockCount >= 2)) {
+          willAchieveRce = true;
+        } else {
+          blockingReason = 'Fibrilación / Taquicardia Ventricular sin pulso persistente. Se requiere continuar compresiones torácicas y desfibrilación según algoritmo ACLS.';
         }
       } else {
-        // STRICT REVERSIBLE CAUSE ENFORCEMENT: ONLY the true correct cause allows RCE!
+        // Ritmos NO desfibrilables (AESP / Asistolia):
         const isHypovolemiaCase = currentCase.hytCategory.toLowerCase().includes('hipovolemia');
         const correctTreated = treatedCauses.some((id) => {
           if (isHypovolemiaCase && id === 'hipovolemia') return true;
@@ -640,16 +637,31 @@ export default function App() {
           if (currentCase.hytCategory.toLowerCase().includes('hipotermia') && id === 'hipotermia') return true;
           if (currentCase.hytCategory.toLowerCase().includes('trombosis pulmonar') && id === 'tep') return true;
           if (currentCase.hytCategory.toLowerCase().includes('trombosis coronaria') && id === 'iam') return true;
+          if (currentCase.hytCategory.toLowerCase().includes('hipoglicemia') && id === 'hipoglicemia') return true;
           return false;
         }) || (isHypovolemiaCase && hasGivenVolume && infusedVolumeMl >= 500);
 
         if (adrenalineCount >= 1 && correctTreated) {
-          triggerRCE();
+          willAchieveRce = true;
         } else if (!correctTreated) {
-          addLog('Docente Evaluador', `⚠️ Ritmo no desfibrilable (${currentCase.arrestType}): La causa reversible tratada NO es la etiología primaria del paro (${currentCase.hytCategory}). Paciente continúa en paro cardiorrespiratorio. Revisa POCUS y Laboratorio.`, 'warning');
+          blockingReason = `Ritmo no desfibrilable (${currentCase.arrestType}): La causa reversible tratada NO es la etiología primaria del paro (${currentCase.hytCategory}). Paciente continúa en paro cardiorrespiratorio. Revisa POCUS y Laboratorio.`;
         } else if (adrenalineCount === 0) {
-          addLog('Docente Evaluador', `⚠️ Causa reversible tratada, pero se requiere Adrenalina 1 mg IV precoz según algoritmo ACLS para lograr RCE en ritmo no desfibrilable (${currentCase.arrestType}).`, 'warning');
+          blockingReason = `Causa reversible tratada, pero se requiere Adrenalina 1 mg IV precoz según algoritmo ACLS para lograr RCE en ritmo no desfibrilable (${currentCase.arrestType}).`;
         }
+      }
+
+      // Si cumple criterios de RCE:
+      if (willAchieveRce) {
+        addLog('Líder', '🩺 Examen de pulso (<10s): ¡PULSO CAROTÍDEO PALPABLE CONFIRMADO! El paciente ha recuperado pulso central espontáneo.', 'success');
+        triggerRCE();
+        return;
+      }
+
+      // Si NO cumple criterios de RCE:
+      soundEngine.speak('No se palpa pulso carotídeo. Sin pulso. Reanudar compresiones inmediatamente.', 'system');
+      addLog('Líder', '⚠️ Examen de pulso (<10s): NO SE PALPA PULSO CAROTÍDEO (Paciente sin pulso). Reanudar RCP de inmediato.', 'error');
+      if (blockingReason) {
+        addLog('Docente Evaluador', `⚠️ ${blockingReason}`, 'warning');
       }
     } else {
       soundEngine.speak('Pulso carotídeo palpable presente.', 'system');
